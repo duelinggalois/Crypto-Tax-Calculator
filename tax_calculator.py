@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import time
 from collections import deque
@@ -21,7 +22,7 @@ def calculate_all(path, cb_name, trade_name):
     trades_df = pd.read_csv(
       "{}{}_with_usd_per.csv".format(path, trade_name[:-4])
     )
-  except Exception:
+  except FileNotFoundError as e:
     print(
       "STEP 1: Finding BTC-USD for non USD Quote trades. API limits 3 requests"
       " per second so this will take over one minute per 90 non USD quote"
@@ -44,7 +45,7 @@ def calculate_all(path, cb_name, trade_name):
     assets.update(pair.split(DELIMINATOR))
   assets.remove("USD")
   print(
-    "STEP 2: Analyzing trades for the folowing products\n{}".format(assets)
+    "STEP 2: Analyzing trades for the following products\n{}".format(assets)
   )
   for asset in assets:
     print("Starting to process {}".format(asset))
@@ -75,8 +76,6 @@ def calculate_tax_profit_and_loss(asset, basis_df, asset_df):
     if trade[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset:
       if trade[SIDE_HEADER] == SELL:
         # Pull trades from queue until trades is satisfied
-        # if asset == "BTC":
-        #   import pdb; pdb.set_trace()
         handle_sell(asset, trade, basis_queue, p_l_df, wash)
       else:
         # Add BUY trade to que for basis
@@ -86,9 +85,6 @@ def calculate_tax_profit_and_loss(asset, basis_df, asset_df):
       if trade[SIDE_HEADER] == BUY:
         # BUY of an asset with BTC as the quote is a BTC sell pull trades from
         # queue
-        # if asset == "BTC":
-        #   print("BTC QUOTE")
-        #   import pdb; pdb.set_trace()
         handle_sell(asset, trade, basis_queue, p_l_df, wash)
       else:
         # Else this is a quote buy which should be added to the
@@ -323,9 +319,37 @@ def get_candles(iso_time, pair):
   response = requests.get(
     "{}?start={}&end={}&granularity={}".format(url, start, end, minute)
   )
-  data = response.json()[0]
-  return data
+  r_json = response.json()
+
+  try:
+    data = r_json[0]
+    return data
+  except KeyError as e:
+    if 'message' in r_json:
+      print(r_json['message'])
+      if r_json['message'] == 'Slow rate limit exceeded':
+        print("API rate limit exceeded, pausing for 1 seconds")
+        time.sleep(1)
+        return get_candles(iso_time, pair)
+    raise IOError(e, r_json)
 
 
 def convert_iso_to_datetime(iso_time):
   return datetime.datetime.strptime(iso_time, TIME_STRING_FORMAT)
+
+
+def parse_command_line():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("path", help="Path to files")
+  parser.add_argument("basis", help="Name of basis csv in path")
+  parser.add_argument("fills", help="Name of fills csv in path")
+  return parser.parse_args()
+
+
+def main(args):
+  calculate_all(args.path, args.basis, args.fills)
+
+
+if __name__ == "__main__":
+  args = parse_command_line()
+  main(args)
