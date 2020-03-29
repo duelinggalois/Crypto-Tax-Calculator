@@ -1,5 +1,7 @@
 # Default headers for imported csv
-PRODOUCT_HEADER = "product"
+from enum import Enum
+
+PRODUCT_HEADER = "product"
 CREATED_AT_HEADER = "created at"
 SIDE_HEADER = "side"
 SIZE_HEADER = "size"
@@ -25,3 +27,9 @@ COLUMNS = [
     "USD per BTC (Sold)", "Proceeds USD",
     "Gain or Loss", "Wash Trade Loss", "Notes"
   ]
+
+
+class Pair(Enum):
+  BTC_USD = "BTC-USD"
+  ETH_BTC = "ETH-BTC"
+
