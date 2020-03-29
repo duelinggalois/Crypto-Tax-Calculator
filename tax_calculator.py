@@ -1,15 +1,20 @@
+import argparse
 import datetime
 import time
 from collections import deque
 
 import pandas as pd
-import requests
 
+from exchange_api.exchange_api_impl import ExchangeApiImpl
+from exchange_api.requests_provider_impl import RequestsProviderImpl
 from format import (
-  PRODOUCT_HEADER, CREATED_AT_HEADER, SIDE_HEADER, SIZE_HEADER,
-  TRADE_ID_HEADER, PRICE_HEADER, FEE_HEADER, TOTAL_HEADER, TOTAL_IN_USD_HEADER,
-  USD_PER_BTC_HEADER, DELIMINATOR, BUY, SELL, TIME_STRING_FORMAT, COLUMNS
-)
+  PRODUCT_HEADER, CREATED_AT_HEADER, SIDE_HEADER, SIZE_HEADER, TRADE_ID_HEADER,
+  PRICE_HEADER, FEE_HEADER, TOTAL_HEADER, TOTAL_IN_USD_HEADER,
+  USD_PER_BTC_HEADER, DELIMINATOR, BUY, SELL, TIME_STRING_FORMAT, COLUMNS,
+  Pair)
+
+
+exchange_api = ExchangeApiImpl(RequestsProviderImpl())
 
 
 def calculate_all(path, cb_name, trade_name):
@@ -21,11 +26,11 @@ def calculate_all(path, cb_name, trade_name):
     trades_df = pd.read_csv(
       "{}{}_with_usd_per.csv".format(path, trade_name[:-4])
     )
-  except Exception:
+  except FileNotFoundError as e:
     print(
       "STEP 1: Finding BTC-USD for non USD Quote trades. API limits 3 requests"
       " per second so this will take over one minute per 90 non USD quote"
-      " trades"
+      " trades."
     )
     cost_basis_df = pd.read_csv("{}{}".format(path, cb_name))
     trades_df = pd.read_csv("{}{}".format(path, trade_name))
@@ -40,22 +45,22 @@ def calculate_all(path, cb_name, trade_name):
       index=False
     )
   assets = set()
-  for pair in trades_df[PRODOUCT_HEADER]:
+  for pair in trades_df[PRODUCT_HEADER]:
     assets.update(pair.split(DELIMINATOR))
   assets.remove("USD")
   print(
-    "STEP 2: Analyzing trades for the folowing products\n{}".format(assets)
+    "STEP 2: Analyzing trades for the following products\n{}".format(assets)
   )
   for asset in assets:
     print("Starting to process {}".format(asset))
     basis_df = cost_basis_df.loc[
-      (((cost_basis_df[PRODOUCT_HEADER].str[:len(asset)] == asset) &
+      (((cost_basis_df[PRODUCT_HEADER].str[:len(asset)] == asset) &
         (cost_basis_df[SIDE_HEADER] == BUY)) |
-       ((cost_basis_df[PRODOUCT_HEADER].str[-len(asset):] == asset) &
+       ((cost_basis_df[PRODUCT_HEADER].str[-len(asset):] == asset) &
         (cost_basis_df[SIDE_HEADER] == SELL))
        )
     ]
-    asset_df = trades_df[trades_df[PRODOUCT_HEADER].str.contains(asset)]
+    asset_df = trades_df[trades_df[PRODUCT_HEADER].str.contains(asset)]
     final_basis_df, p_l_df = calculate_tax_profit_and_loss(
       asset, basis_df.sort_values(CREATED_AT_HEADER),
       asset_df.sort_values(CREATED_AT_HEADER)
@@ -72,23 +77,18 @@ def calculate_tax_profit_and_loss(asset, basis_df, asset_df):
   # wash trade queue
   wash = deque()
   for j, trade in asset_df.iterrows():
-    if trade[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset:
+    if trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset:
       if trade[SIDE_HEADER] == SELL:
         # Pull trades from queue until trades is satisfied
-        # if asset == "BTC":
-        #   import pdb; pdb.set_trace()
         handle_sell(asset, trade, basis_queue, p_l_df, wash)
       else:
         # Add BUY trade to que for basis
         handle_buy(asset, trade, basis_queue, p_l_df, wash)
-    elif (trade[PRODOUCT_HEADER].split(DELIMINATOR)[1] == asset):
+    elif trade[PRODUCT_HEADER].split(DELIMINATOR)[1] == asset:
       # When asset is BTC, it can be the base and needs to be accounted for
       if trade[SIDE_HEADER] == BUY:
         # BUY of an asset with BTC as the quote is a BTC sell pull trades from
         # queue
-        # if asset == "BTC":
-        #   print("BTC QUOTE")
-        #   import pdb; pdb.set_trace()
         handle_sell(asset, trade, basis_queue, p_l_df, wash)
       else:
         # Else this is a quote buy which should be added to the
@@ -102,7 +102,7 @@ def calculate_tax_profit_and_loss(asset, basis_df, asset_df):
 
 
 def handle_buy(asset, trade, basis_queue, p_l_df, wash):
-  if len(wash) > 0 and trade[PRODOUCT_HEADER].split(DELIMINATOR)[1] == "USD":
+  if len(wash) > 0 and trade[PRODUCT_HEADER].split(DELIMINATOR)[1] == "USD":
     # check to see if this buy disqulifes a loss trade in recent past
     size = get_size_per_asset_and_trade(trade, asset)
     # First deal with wash trades
@@ -176,16 +176,16 @@ def handle_sell(asset, trade, basis_queue, p_l_df, wash):
       adjust_scale = min(buy["Adjusted Size"], entry_size
                          ) / buy["Adjusted Size"]
       adjust_total = (
-        (1 if buy[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-        buy["Adjust Basis"]
+          (1 if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
+          buy["Adjust Basis"]
       )
       buy_total = (
-        (1 if buy[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-        buy[TOTAL_IN_USD_HEADER]
+          (1 if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
+          buy[TOTAL_IN_USD_HEADER]
       )
       trade_total = (
-        (1 if trade[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-        trade[TOTAL_IN_USD_HEADER]
+          (1 if trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
+          trade[TOTAL_IN_USD_HEADER]
       )
       p_l = (buy_total * buy_scale + trade_total * sell_scale +
              adjust_total * adjust_scale
@@ -198,12 +198,12 @@ def handle_sell(asset, trade, basis_queue, p_l_df, wash):
       """
       p_l_df.loc[len(p_l_df)] = [
         entry_size,
-        buy[TRADE_ID_HEADER], buy[CREATED_AT_HEADER], buy[PRODOUCT_HEADER],
+        buy[TRADE_ID_HEADER], buy[CREATED_AT_HEADER], buy[PRODUCT_HEADER],
         buy[SIDE_HEADER], buy[PRICE_HEADER], buy[FEE_HEADER],
         buy[TOTAL_HEADER], buy[USD_PER_BTC_HEADER],
         buy[TOTAL_IN_USD_HEADER] * buy_scale,
         trade[TRADE_ID_HEADER], trade[CREATED_AT_HEADER],
-        trade[PRODOUCT_HEADER], trade[SIDE_HEADER], trade[PRICE_HEADER],
+        trade[PRODUCT_HEADER], trade[SIDE_HEADER], trade[PRICE_HEADER],
         trade[FEE_HEADER], trade[TOTAL_HEADER], trade[USD_PER_BTC_HEADER],
         trade[TOTAL_IN_USD_HEADER] * sell_scale,
         p_l, 0, buy["Adjusted Note"]
@@ -211,34 +211,34 @@ def handle_sell(asset, trade, basis_queue, p_l_df, wash):
       buy.loc[["Adjust Basis", "Adjusted Size"]] *= 1 - adjust_scale
     else:
       buy_total = (
-        (1 if buy[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-        buy[TOTAL_IN_USD_HEADER]
+          (1 if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
+          buy[TOTAL_IN_USD_HEADER]
       )
       trade_total = (
-        (1 if trade[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-        trade[TOTAL_IN_USD_HEADER]
+          (1 if trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
+          trade[TOTAL_IN_USD_HEADER]
       )
       p_l = buy_total * buy_scale + trade_total * sell_scale
       p_l_df.loc[len(p_l_df)] = [
         entry_size,
-        buy[TRADE_ID_HEADER], buy[CREATED_AT_HEADER], buy[PRODOUCT_HEADER],
+        buy[TRADE_ID_HEADER], buy[CREATED_AT_HEADER], buy[PRODUCT_HEADER],
         buy[SIDE_HEADER], buy[PRICE_HEADER], buy[FEE_HEADER],
         buy[TOTAL_HEADER], buy[USD_PER_BTC_HEADER],
         buy[TOTAL_IN_USD_HEADER] * buy_scale,
         trade[TRADE_ID_HEADER], trade[CREATED_AT_HEADER],
-        trade[PRODOUCT_HEADER], trade[SIDE_HEADER], trade[PRICE_HEADER],
+        trade[PRODUCT_HEADER], trade[SIDE_HEADER], trade[PRICE_HEADER],
         trade[FEE_HEADER], trade[TOTAL_HEADER], trade[TOTAL_IN_USD_HEADER],
         trade[TOTAL_IN_USD_HEADER] * sell_scale,
         p_l, 0, ""
       ]
     # Need to save any losses or proceeding sales to check for wash trade
     if p_l < 0 or (
-      len(wash) > 0 and trade[PRODOUCT_HEADER].split(DELIMINATOR)[0] == "USD"
+        len(wash) > 0 and trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == "USD"
     ):
       # Add row to wash trade list if loss or wash is not empty
       wash.append((len(p_l_df) - 1, entry_size, p_l))
     buy_size = (
-      buy[SIZE_HEADER] if buy[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset
+      buy[SIZE_HEADER] if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset
       else buy[TOTAL_HEADER]
     )
     size -= entry_size
@@ -257,9 +257,9 @@ def handle_sell(asset, trade, basis_queue, p_l_df, wash):
 
 def get_size_per_asset_and_trade(trade, asset):
   try:
-    if trade[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset:
+    if trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset:
       return trade[SIZE_HEADER]
-    elif trade[PRODOUCT_HEADER].split(DELIMINATOR)[1] == asset:
+    elif trade[PRODUCT_HEADER].split(DELIMINATOR)[1] == asset:
       return abs(trade[TOTAL_HEADER])  # quote pair size is the total
     else:
       ValueError(
@@ -273,10 +273,10 @@ def get_size_per_asset_and_trade(trade, asset):
 
 
 def get_entry_size_and_buy_scale(buy, asset, size):
-  if buy[PRODOUCT_HEADER].split(DELIMINATOR)[0] == asset:
+  if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset:
     entry_size = min(size, buy[SIZE_HEADER])
     buy_scale = entry_size / buy[SIZE_HEADER]
-  elif buy[PRODOUCT_HEADER].split(DELIMINATOR)[1] == asset:
+  elif buy[PRODUCT_HEADER].split(DELIMINATOR)[1] == asset:
     entry_size = min(size, abs(buy[TOTAL_HEADER]))
     buy_scale = entry_size / abs(buy[TOTAL_HEADER])
   else:
@@ -289,10 +289,11 @@ def get_entry_size_and_buy_scale(buy, asset, size):
 
 
 def add_usd_per(df):
-  usd_not_base_mask = df[PRODOUCT_HEADER].str[-3:] != "USD"
+  usd_not_base_mask = df[PRODUCT_HEADER].str[-3:] != "USD"
   prices = []
   for i, j in df.loc[usd_not_base_mask].iterrows():
-    prices.append(get_close(j[CREATED_AT_HEADER], "BTC-USD"))
+    close = exchange_api.get_close(j[CREATED_AT_HEADER], Pair.BTC_USD)
+    prices.append(close)
     # API is rate limited at 3 requests per second
     time.sleep(.4)
   df.loc[usd_not_base_mask, USD_PER_BTC_HEADER] = prices
@@ -304,28 +305,22 @@ def add_usd_per(df):
     ~usd_not_base_mask, TOTAL_HEADER]
 
 
-def get_close(iso_time, pair):
-  return get_candles(iso_time, pair)[4]
-
-
-def get_candles(iso_time, pair):
-  '''
-  Using the trading pair and the iso_formated time and returns coinbase candles
-  for that time and pair in the format:
-  [ time, low, high, open, close, volume ]
-  '''
-  minute = "60"
-  url = "https://api.pro.coinbase.com/products/{}/candles".format(pair)
-  start = iso_time[:16] + ":00Z"
-  dt_start = convert_iso_to_datetime(iso_time)
-  dt_end = dt_start + datetime.timedelta(0, 60)
-  end = dt_end.strftime("%Y-%m-%dT%H:%M:%SZ")
-  response = requests.get(
-    "{}?start={}&end={}&granularity={}".format(url, start, end, minute)
-  )
-  data = response.json()[0]
-  return data
-
-
 def convert_iso_to_datetime(iso_time):
   return datetime.datetime.strptime(iso_time, TIME_STRING_FORMAT)
+
+
+def parse_command_line():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("path", help="Path to files")
+  parser.add_argument("basis", help="Name of basis csv in path")
+  parser.add_argument("fills", help="Name of fills csv in path")
+  return parser.parse_args()
+
+
+def main(args):
+  calculate_all(args.path, args.basis, args.fills)
+
+
+if __name__ == "__main__":
+  args = parse_command_line()
+  main(args)
