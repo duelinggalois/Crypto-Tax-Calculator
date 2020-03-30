@@ -1,11 +1,9 @@
-import datetime
-from typing import List
-from unittest import TestCase
+from unittest import TestCase, mock
+from unittest.mock import MagicMock, call
 
 from requests.models import Response
 
-from exchange_api.exchange_api_impl import ExchangeApiImpl, get_next_minute
-from exchange_api.requests_provider import RequestsProvider
+from src.exchange_api.exchange_api_impl import ExchangeApiImpl, get_next_minute
 from format import Pair
 
 RATE_LIMIT_EXCEEDED = {"message": 'Slow rate limit exceeded'}
@@ -19,129 +17,83 @@ class TestExchangeApi(TestCase):
 
     self.assertEqual(expected_results, get_next_minute(iso_start_time))
 
-  def test_get_close(self):
+  @mock.patch("src.exchange_api.exchange_api_impl.requests.get")
+  def test_get_close_mock(self, mock_get: MagicMock):
     iso_start_time = "2018-04-20T14:31:18.458Z"
     iso_expected_end = "2018-04-20T14:32:18.458000Z"
     pair = Pair.BTC_USD
+    expected_url = (
+      "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
+      "granularity=60"
+    ).format(pair.value, iso_start_time, iso_expected_end)
     expected_close = 8883.56
-    stub_requests_provider = get_stub_requests_provider(expected_close)
-    stub_requests = stub_requests_provider.get()
-    exchange_api_impl = ExchangeApiImpl(stub_requests_provider)
 
-    close = exchange_api_impl.get_close(iso_start_time, pair)
+    api = ExchangeApiImpl()
+    mock_get.return_value = get_stub_response(expected_close)
+    close = api.get_close(iso_start_time, pair)
 
     self.assertEqual(expected_close, close)
+    mock_get.assert_called_once_with(expected_url)
 
-    calls = stub_requests.get_calls()
-    self.assertEqual(len(calls), 1)
-    self.assertEqual(
-      calls[0],
-      "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
-      "granularity=60".format(pair.value, iso_start_time, iso_expected_end)
-    )
-
-  def test_rate_limit(self):
+  @mock.patch("src.exchange_api.exchange_api_impl.requests.get")
+  def test_rate_limit(self, mock_get: MagicMock):
     iso_start_time = "2019-04-21T12:19:14.345Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
     pair = Pair.BTC_USD
+    expected_url = (
+      "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
+      "granularity=60"
+    ).format(pair.value, iso_start_time, iso_expected_end)
     expected_close = 8884.56
-    stub_requests_provider = get_stub_provider_rate_limit_error(expected_close)
-    stub_requests = stub_requests_provider.get()
-    exchange_api_impl = ExchangeApiImpl(stub_requests_provider)
+    api = ExchangeApiImpl()
+    mock_get.side_effect = [
+      StubResponse(RATE_LIMIT_EXCEEDED),
+      get_stub_response(expected_close)
+    ]
 
-    close = exchange_api_impl.get_close(iso_start_time, pair)
+    close = api.get_close(iso_start_time, pair)
 
     self.assertEqual(expected_close, close)
 
-    calls = stub_requests.get_calls()
-    self.assertEqual(len(calls), 2)
+    self.assertEqual(mock_get.call_count, 2)
     self.assertEqual(
-      calls[0],
-      "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
-      "granularity=60".format(pair.value, iso_start_time, iso_expected_end)
+      mock_get.call_args_list,
+      [call(expected_url), call(expected_url)]
     )
-    self.assertEqual(calls[0], calls[1], "Both calls should match")
 
-  def test_unknown_error_throws_exception(self):
+  @mock.patch("src.exchange_api.exchange_api_impl.requests.get")
+  def test_unknown_error_throws_exception(self, mock_get: MagicMock):
     iso_start_time = "2019-04-21T12:19:14.345Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
     pair = Pair.BTC_USD
-    stub_requests_provider = get_stub_provider_return_unknown_error()
-    stub_requests = stub_requests_provider.get()
-    exchange_api_impl = ExchangeApiImpl(stub_requests_provider)
-
-    self.assertRaises(
-      NotImplementedError,
-      exchange_api_impl.get_close,
-      iso_start_time,
-      pair
-    )
-
-    calls = stub_requests.get_calls()
-    self.assertEqual(len(calls), 1)
-    self.assertEqual(
-      calls[0],
+    expected_url = (
       "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
-      "granularity=60".format(pair.value, iso_start_time, iso_expected_end)
-    )
+      "granularity=60"
+    ).format(pair.value, iso_start_time, iso_expected_end)
+    api = ExchangeApiImpl()
+    mock_get.return_value = StubResponse({"message": "unknown error"})
+
+    with self.assertRaises(NotImplementedError) as context:
+      api.get_close(iso_start_time, pair)
+    self.assertEqual("Unknown message from api: unknown error",
+                     str(context.exception))
+
+    mock_get.assert_called_once_with(expected_url)
 
 
-def get_stub_requests_provider(expected_close: float) -> RequestsProvider:
-  response = StubResponse(
-    [
-      # RESPONSE ITEMS
-      # Each bucket is an array of the following information:
-      #
-      # time bucket start time
-      # low lowest price during the bucket interval
-      # high highest price during the bucket interval
-      # open opening price (first trade) in the bucket interval
-      # close closing price (last trade) in the bucket interval
-      # volume volume of trading activity during the bucket interval
-      [1524454920, 8883.55, 8883.56, 8883.55, expected_close, 2.73547997]
-    ]
+def get_stub_response(expected_close: float) -> Response:
+  return StubResponse(
+    # RESPONSE ITEMS
+    # Each bucket is an array of the following information:
+    #
+    # time bucket start time
+    # low lowest price during the bucket interval
+    # high highest price during the bucket interval
+    # open opening price (first trade) in the bucket interval
+    # close closing price (last trade) in the bucket interval
+    # volume volume of trading activity during the bucket interval
+    [[1524454920, 8883.55, 8883.56, 8883.55, expected_close, 2.73547997]]
   )
-  return StubProvider([response])
-
-
-def get_stub_provider_rate_limit_error(
-    expected_close: float
-) -> RequestsProvider:
-  response1 = StubResponse(RATE_LIMIT_EXCEEDED)
-  response2 = StubResponse(
-    [
-      [1524454920, 8883.55, 8883.56, 8883.55, expected_close, 2.73547997]
-    ])
-  return StubProvider([response1, response2])
-
-
-def get_stub_provider_return_unknown_error() -> RequestsProvider:
-  return StubProvider([StubResponse({"message": "unknown error"})])
-
-
-class StubProvider(RequestsProvider):
-
-  def __init__(self, responses: List[Response]):
-    self.to_return = StubRequests(responses)
-
-  def get(self):
-    return self.to_return
-
-
-class StubRequests:
-  def __init__(self, responses: List[Response]):
-    self.responses = responses
-    self.urls = []
-    self.count = 0
-
-  def get(self, url, params=None, **kwargs) -> Response:
-    self.urls.append(url)
-    index = self.count
-    self.count +=1
-    return self.responses[index]
-
-  def get_calls(self) -> list:
-    return self.urls
 
 
 class StubResponse(Response):
