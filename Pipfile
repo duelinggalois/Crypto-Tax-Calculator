@@ -5,6 +5,8 @@ verify_ssl = true
 [packages]
 pandas = "*"
 requests = "*"
+nose = "*"
+coverage = "*"
 
 [requires]
 python_version = "3.6"
