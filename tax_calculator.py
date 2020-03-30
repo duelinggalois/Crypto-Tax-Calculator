@@ -5,8 +5,7 @@ from collections import deque
 
 import pandas as pd
 
-from exchange_api.exchange_api_impl import ExchangeApiImpl
-from exchange_api.requests_provider_impl import RequestsProviderImpl
+from src.exchange_api.exchange_api_impl import ExchangeApiImpl
 from format import (
   PRODUCT_HEADER, CREATED_AT_HEADER, SIDE_HEADER, SIZE_HEADER, TRADE_ID_HEADER,
   PRICE_HEADER, FEE_HEADER, TOTAL_HEADER, TOTAL_IN_USD_HEADER,
@@ -14,7 +13,7 @@ from format import (
   Pair)
 
 
-exchange_api = ExchangeApiImpl(RequestsProviderImpl())
+exchange_api = ExchangeApiImpl()
 
 
 def calculate_all(path, cb_name, trade_name):

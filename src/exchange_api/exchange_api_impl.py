@@ -1,8 +1,9 @@
 import datetime
 import time
 
-from exchange_api.exchange_api import ExchangeApi
-from exchange_api.requests_provider import RequestsProvider
+import requests
+
+from src.exchange_api.exchange_api import ExchangeApi
 from format import Pair, TIME_STRING_FORMAT
 
 BASE_URL = "https://api.pro.coinbase.com/products/"
@@ -10,12 +11,9 @@ BASE_URL = "https://api.pro.coinbase.com/products/"
 
 class ExchangeApiImpl(ExchangeApi):
 
-  def __init__(self, requests_provider: RequestsProvider):
-    self.requests = requests_provider.get()
-
   def get_close(self, iso_time: str, pair: Pair) -> float:
     url = BASE_URL + "{}/candles".format(pair.value)
-    response = self.requests.get(
+    response = requests.get(
       "{}?start={}&end={}&granularity=60".format(
         url,
         iso_time,
@@ -35,7 +33,9 @@ class ExchangeApiImpl(ExchangeApi):
       print("API rate limit exceeded, pausing for 1 seconds")
       time.sleep(1)
       return self.get_close(iso_time, pair)
-    raise NotImplementedError("Unkown message from api: {}", data["message"])
+    raise NotImplementedError("Unknown message from api: {}"
+                              .format(data["message"]))
+
 
 def get_next_minute(iso_time: str) -> str:
   start_dt = datetime.datetime.strptime(iso_time, TIME_STRING_FORMAT)
