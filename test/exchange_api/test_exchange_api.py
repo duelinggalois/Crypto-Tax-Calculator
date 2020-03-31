@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, call
 
 from requests.models import Response
 
-from calculator.api.exchange_api_impl import ExchangeApiImpl, get_next_minute
+from calculator.api.exchange_api import ExchangeApi, get_next_minute
 from calculator.format import Pair
 
 RATE_LIMIT_EXCEEDED = {"message": 'Slow rate limit exceeded'}
@@ -17,7 +17,7 @@ class TestExchangeApi(TestCase):
 
     self.assertEqual(expected_results, get_next_minute(iso_start_time))
 
-  @mock.patch("calculator.api.exchange_api_impl.requests.get")
+  @mock.patch("calculator.api.exchange_api.requests.get")
   def test_get_close_mock(self, mock_get: MagicMock):
     iso_start_time = "2018-04-20T14:31:18.458Z"
     iso_expected_end = "2018-04-20T14:32:18.458000Z"
@@ -28,14 +28,14 @@ class TestExchangeApi(TestCase):
     ).format(pair.value, iso_start_time, iso_expected_end)
     expected_close = 8883.56
 
-    api = ExchangeApiImpl()
+    api = ExchangeApi()
     mock_get.return_value = get_stub_response(expected_close)
     close = api.get_close(iso_start_time, pair)
 
     self.assertEqual(expected_close, close)
     mock_get.assert_called_once_with(expected_url)
 
-  @mock.patch("calculator.api.exchange_api_impl.requests.get")
+  @mock.patch("calculator.api.exchange_api.requests.get")
   def test_rate_limit(self, mock_get: MagicMock):
     iso_start_time = "2019-04-21T12:19:14.345Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
@@ -45,7 +45,7 @@ class TestExchangeApi(TestCase):
       "granularity=60"
     ).format(pair.value, iso_start_time, iso_expected_end)
     expected_close = 8884.56
-    api = ExchangeApiImpl()
+    api = ExchangeApi()
     mock_get.side_effect = [
       StubResponse(RATE_LIMIT_EXCEEDED),
       get_stub_response(expected_close)
@@ -61,7 +61,7 @@ class TestExchangeApi(TestCase):
       [call(expected_url), call(expected_url)]
     )
 
-  @mock.patch("calculator.api.exchange_api_impl.requests.get")
+  @mock.patch("calculator.api.exchange_api.requests.get")
   def test_unknown_error_throws_exception(self, mock_get: MagicMock):
     iso_start_time = "2019-04-21T12:19:14.345Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
@@ -70,7 +70,7 @@ class TestExchangeApi(TestCase):
       "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
       "granularity=60"
     ).format(pair.value, iso_start_time, iso_expected_end)
-    api = ExchangeApiImpl()
+    api = ExchangeApi()
     mock_get.return_value = StubResponse({"message": "unknown error"})
 
     with self.assertRaises(NotImplementedError) as context:

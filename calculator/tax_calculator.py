@@ -4,25 +4,27 @@ from collections import deque
 
 import pandas as pd
 
-from calculator.api.exchange_api_impl import ExchangeApiImpl
+from calculator.api.exchange_api import ExchangeApi
 from calculator.format import (
   PRODUCT_HEADER, CREATED_AT_HEADER, SIDE_HEADER, SIZE_HEADER, TRADE_ID_HEADER,
   PRICE_HEADER, FEE_HEADER, TOTAL_HEADER, TOTAL_IN_USD_HEADER,
   USD_PER_BTC_HEADER, DELIMINATOR, BUY, SELL, TIME_STRING_FORMAT, COLUMNS,
-  Pair)
+  Pair, CONVERTERS)
 
 
-exchange_api = ExchangeApiImpl()
+exchange_api = ExchangeApi()
 
 
 def calculate_all(path, cb_name, trade_name):
   try:
     # See if usd has been retrieved already
     cost_basis_df = pd.read_csv(
-      "{}{}_with_usd_per.csv".format(path, cb_name[:-4])
+      "{}{}_with_usd_per.csv".format(path, cb_name[:-4]),
+      converters=CONVERTERS
     )
     trades_df = pd.read_csv(
-      "{}{}_with_usd_per.csv".format(path, trade_name[:-4])
+      "{}{}_with_usd_per.csv".format(path, trade_name[:-4]),
+      converters=CONVERTERS
     )
   except FileNotFoundError as e:
     print(
@@ -30,8 +32,14 @@ def calculate_all(path, cb_name, trade_name):
       " per second so this will take over one minute per 90 non USD quote"
       " trades."
     )
-    cost_basis_df = pd.read_csv("{}{}".format(path, cb_name))
-    trades_df = pd.read_csv("{}{}".format(path, trade_name))
+    cost_basis_df = pd.read_csv(
+      "{}{}".format(path, cb_name),
+      converters=CONVERTERS
+    )
+    trades_df = pd.read_csv(
+      "{}{}".format(path, trade_name),
+      converters=CONVERTERS
+    )
     add_usd_per(trades_df)
     add_usd_per(cost_basis_df)
     trades_df.to_csv(
