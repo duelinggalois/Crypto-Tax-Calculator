@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, call
 
 from requests.models import Response
 
-from src.exchange_api.exchange_api_impl import ExchangeApiImpl, get_next_minute
-from format import Pair
+from calculator.api.exchange_api_impl import ExchangeApiImpl, get_next_minute
+from calculator.format import Pair
 
 RATE_LIMIT_EXCEEDED = {"message": 'Slow rate limit exceeded'}
 
@@ -17,7 +17,7 @@ class TestExchangeApi(TestCase):
 
     self.assertEqual(expected_results, get_next_minute(iso_start_time))
 
-  @mock.patch("src.exchange_api.exchange_api_impl.requests.get")
+  @mock.patch("calculator.api.exchange_api_impl.requests.get")
   def test_get_close_mock(self, mock_get: MagicMock):
     iso_start_time = "2018-04-20T14:31:18.458Z"
     iso_expected_end = "2018-04-20T14:32:18.458000Z"
@@ -35,7 +35,7 @@ class TestExchangeApi(TestCase):
     self.assertEqual(expected_close, close)
     mock_get.assert_called_once_with(expected_url)
 
-  @mock.patch("src.exchange_api.exchange_api_impl.requests.get")
+  @mock.patch("calculator.api.exchange_api_impl.requests.get")
   def test_rate_limit(self, mock_get: MagicMock):
     iso_start_time = "2019-04-21T12:19:14.345Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
@@ -61,7 +61,7 @@ class TestExchangeApi(TestCase):
       [call(expected_url), call(expected_url)]
     )
 
-  @mock.patch("src.exchange_api.exchange_api_impl.requests.get")
+  @mock.patch("calculator.api.exchange_api_impl.requests.get")
   def test_unknown_error_throws_exception(self, mock_get: MagicMock):
     iso_start_time = "2019-04-21T12:19:14.345Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"

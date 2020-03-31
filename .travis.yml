@@ -6,4 +6,6 @@ python:
 install:
   - pipenv install
 scrpit:
-  - pipenv run nosetests --with-coverage  --cover-package=.
+  - pipenv run nosetests --with-coverage --cover-package=calculator --cover-inclusive
+after_success:
+  - codecov
