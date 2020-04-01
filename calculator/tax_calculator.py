@@ -1,12 +1,11 @@
-import argparse
 import datetime
 import time
 from collections import deque
 
 import pandas as pd
 
-from src.exchange_api.exchange_api_impl import ExchangeApiImpl
-from format import (
+from calculator.api.exchange_api_impl import ExchangeApiImpl
+from calculator.format import (
   PRODUCT_HEADER, CREATED_AT_HEADER, SIDE_HEADER, SIZE_HEADER, TRADE_ID_HEADER,
   PRICE_HEADER, FEE_HEADER, TOTAL_HEADER, TOTAL_IN_USD_HEADER,
   USD_PER_BTC_HEADER, DELIMINATOR, BUY, SELL, TIME_STRING_FORMAT, COLUMNS,
@@ -306,20 +305,3 @@ def add_usd_per(df):
 
 def convert_iso_to_datetime(iso_time):
   return datetime.datetime.strptime(iso_time, TIME_STRING_FORMAT)
-
-
-def parse_command_line():
-  parser = argparse.ArgumentParser()
-  parser.add_argument("path", help="Path to files")
-  parser.add_argument("basis", help="Name of basis csv in path")
-  parser.add_argument("fills", help="Name of fills csv in path")
-  return parser.parse_args()
-
-
-def main(args):
-  calculate_all(args.path, args.basis, args.fills)
-
-
-if __name__ == "__main__":
-  args = parse_command_line()
-  main(args)

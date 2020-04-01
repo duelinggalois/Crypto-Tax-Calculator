@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b4c9fb8ebffca431a668671fb207f2518a1b56ba3eac67f4d261856fd5c9e55a"
+            "sha256": "52c4b7b143c036b9fe280f0180511a7512cd478f2cb2a25d237b8c8fafd5322b"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -28,6 +28,13 @@
                 "sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691"
             ],
             "version": "==3.0.4"
+        },
+        "codecov": {
+            "hashes": [
+                "sha256:09fb045eb044a619cd2b9dacd7789ae8e322cb7f18196378579fd8d883e6b665",
+                "sha256:aeeefa3a03cac8a78e4f988e935b51a4689bb1f17f20d4e827807ee11135f845"
+            ],
+            "version": "==2.0.22"
         },
         "coverage": {
             "hashes": [

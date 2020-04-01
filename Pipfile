@@ -7,6 +7,7 @@ pandas = "*"
 requests = "*"
 nose = "*"
 coverage = "*"
+codecov = "*"
 
 [requires]
 python_version = "3.6"
