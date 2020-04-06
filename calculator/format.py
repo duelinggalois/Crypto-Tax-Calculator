@@ -1,4 +1,3 @@
-import decimal
 import logging
 from decimal import Decimal
 from enum import Enum
@@ -64,4 +63,4 @@ class Pair(Enum):
 
 class Side(Enum):
   SELL = "SELL"
-  BUY= "BUY"
+  BUY = "BUY"
