@@ -9,7 +9,7 @@ PRODUCT_HEADER = "product"
 SIDE_HEADER = "side"
 CREATED_AT_HEADER = "created at"
 SIZE_HEADER = "size"
-SIZE_UNIT_HEAD = "size unit"
+SIZE_UNIT_HEADER = "size unit"
 PRICE_HEADER = "price"
 FEE_HEADER = "fee"
 P_F_T_UNIT_HEADER = "price/fee/total unit"
@@ -48,11 +48,19 @@ class Asset(Enum):
   USD = "USD"
   BTC = "BTC"
   ETH = "ETH"
+  LTC = "LTC"
+  BCH = "BCH"
 
 
 class Pair(Enum):
   BTC_USD = "BTC-USD"
+  ETH_USD = "ETH-USD"
   ETH_BTC = "ETH-BTC"
+  LTC_USD = "LTC-USD"
+  LTC_BTC = "LTC-BTC"
+  BCH_USD = "BCH-USD"
+  BCH_BTC = "BCH-BTC"
+
 
   def get_quote_asset(self) -> Asset:
     return Asset(self.value.split("-")[1])
