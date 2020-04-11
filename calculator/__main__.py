@@ -2,6 +2,11 @@ import argparse
 from calculator.tax_calculator import calculate_all
 
 
+def main():
+  args = parse_command_line()
+  calculate_all(args.path, args.basis, args.fills)
+
+
 def parse_command_line():
   parser = argparse.ArgumentParser()
   parser.add_argument("path", help="Path to files")
@@ -10,10 +15,5 @@ def parse_command_line():
   return parser.parse_args()
 
 
-def main(args):
-  calculate_all(args.path, args.basis, args.fills)
-
-
 if __name__ == "__main__":
-  args = parse_command_line()
-  main(args)
+  main()
