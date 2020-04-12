@@ -31,29 +31,26 @@ def get_trade(
     usd_per_btc: Decimal = Decimal("13815.04")
 ) -> Series:
   """
-  :param trade_id: 3132964
-  :param product: ETH-BTC
-  :param side: SELL
-  :param created_at: 2018-01-02T01:18:26.406Z
-  :param size: 0.00768977
-  :param price: 0.0575
-  :param fee: 0.0
-  :param usd_per_btc: 13815.04
+  Default values added for both example and ease to create a trade
+  :param trade_id: int trade id
+  :param product: Pair
+  :param side: Side
+  :param created_at: time ie 2018-01-02T01:18:26.406Z
+  :param size: Decimal
+  :param price: Decimal
+  :param fee: Decimal
+  :param usd_per_btc: Decimal
 
   size_unit: ETH
   total: 0.00442161775
   price/fee/total unit: BTC
   total in usd: 6.10
 
-  :return Series
+  :return Series representing the trade
 
   """
   quote: Asset = product.get_quote_asset()
-  if side == Side.BUY:
-    calc_total = lambda s, p, f: s * p + f
-  else:
-    calc_total = lambda s, p, f: s * p - f
-  total = calc_total(size, price, fee)
+  total = size * price + fee if Side.BUY == side else size * price - fee
   if quote == Asset.USD:
     usd_per_btc = Decimal("nan")
     value = total
@@ -97,8 +94,8 @@ class Exchange:
     return cls.usd_per_btc
 
   @classmethod
-  def set_btc_per_usd(cls, usd_per_btc):
-    cls.usd_per_btc = usd_per_btc
+  def set_btc_per_usd(cls, usd_per_btc: str):
+    cls.usd_per_btc = Decimal(usd_per_btc)
 
 
 auto_incrementer = AutoIncrement()

@@ -5,16 +5,18 @@ from typing import Deque, Tuple
 from pandas import Series
 
 from calculator.format import Asset, SIDE, Side, PAIR, \
-  SIZE, PRICE, FEE, TOTAL, TIME
+  SIZE, PRICE, FEE, TOTAL, TIME, TOTAL_IN_USD, ADJUSTED_VALUE
 from calculator.trade_processor.profit_and_loss import Entry
+
+VARIABLE_COLUMNS = [SIZE, FEE, TOTAL, TOTAL_IN_USD, ADJUSTED_VALUE]
 
 
 class TradeProcessor:
 
   def __init__(self, asset: Asset, basis_queue: Deque[Series]):
 
-    self.asset = asset
-    self.basis_queue = basis_queue
+    self.asset: Asset = asset
+    self.basis_queue: Deque[Series] = basis_queue
     self.wash_check_queue: Deque[Entry] = deque()
     self.profit_loss: Deque[Entry] = deque()
 
@@ -94,7 +96,6 @@ class TradeProcessor:
 
     trade_portion = factor_size / total_size
     remainder: Series = trade.copy()
-    # trade = trade.copy()
-    trade[[SIZE, FEE, TOTAL]] *= trade_portion
-    remainder[[SIZE, FEE, TOTAL]] *= (1 - trade_portion)
+    trade[VARIABLE_COLUMNS] *= trade_portion
+    remainder[VARIABLE_COLUMNS] *= (1 - trade_portion)
     return trade, remainder
