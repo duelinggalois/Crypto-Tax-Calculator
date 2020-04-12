@@ -62,7 +62,7 @@ class TestExchangeApi(TestCase):
     )
 
   @mock.patch("calculator.api.exchange_api.requests.get")
-  def test_unknown_error_throws_exception(self, mock_get: MagicMock):
+  def test_unknown_error_raises_exception(self, mock_get: MagicMock):
     iso_start_time = "2019-04-21T12:19:14.345Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
     pair = Pair.BTC_USD

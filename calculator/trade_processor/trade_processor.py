@@ -4,8 +4,9 @@ from typing import Deque, Tuple
 
 from pandas import Series
 
-from calculator.format import Asset, SIDE_HEADER, Side, PRODUCT_HEADER, \
-  SIZE_HEADER, PRICE_HEADER, FEE_HEADER, TOTAL_HEADER
+from calculator.format import Asset, SIDE, Side, PAIR, \
+  SIZE, PRICE, FEE, TOTAL, TIME
+from calculator.trade_processor.profit_and_loss import Entry
 
 
 class TradeProcessor:
@@ -14,8 +15,8 @@ class TradeProcessor:
 
     self.asset = asset
     self.basis_queue = basis_queue
-    self.wash_trades = deque()
-    self.profit_loss: Deque[Tuple[Series, Series]] = deque()
+    self.wash_check_queue: Deque[Entry] = deque()
+    self.profit_loss: Deque[Entry] = deque()
 
   def handle_trade(self, trade: Series):
 
@@ -23,11 +24,11 @@ class TradeProcessor:
       self.handle_proceeds_trade(trade)
 
     else:
-      self.basis_queue.append(trade)
+      self.handle_basis_trade(trade)
 
   def is_proceed_trade(self, trade: Series) -> bool:
-    product = trade[PRODUCT_HEADER]
-    side = trade[SIDE_HEADER]
+    product = trade[PAIR]
+    side = trade[SIDE]
     return (
       product.get_base_asset() == self.asset
       and side == Side.SELL
@@ -44,39 +45,47 @@ class TradeProcessor:
       basis_size = self.determine_basis_size(basis_trade)
 
       if basis_size > trade_size:
-        matched_basis, remainder = self.spit_trade_to_match(
+        scaled_basis, remainder = self.spit_trade_to_match(
           basis_trade, trade_size, basis_size
         )
-        entry = (matched_basis, trade)
+        entry = Entry(self.asset, scaled_basis, trade)
         self.basis_queue.appendleft(remainder)
 
       elif basis_size < trade_size:
-        matched_trade, remainder = self.spit_trade_to_match(
+        scaled_trade, remainder = self.spit_trade_to_match(
           trade, basis_size, trade_size)
-        entry = (basis_trade, matched_trade)
+        entry = Entry(self.asset, basis_trade, scaled_trade)
         trade = remainder
 
       else:
-        entry = (basis_trade, trade)
+        entry = Entry(self.asset, basis_trade, trade)
+      if entry.profit_and_loss.is_loss():
+        self.wash_check_queue.append(entry)
 
       self.profit_loss.append(entry)
       trade_size -= basis_size
 
+  def handle_basis_trade(self, trade):
+    if len(self.wash_check_queue) > 0:
+      time = trade[TIME]
+
+    self.basis_queue.append(trade)
+
   def determine_proceeds_size(self, trade: Series) -> Decimal:
 
-    if trade[PRODUCT_HEADER].get_base_asset() == self.asset:
-      trade_size = trade[SIZE_HEADER]
+    if trade[PAIR].get_base_asset() == self.asset:
+      trade_size = trade[SIZE]
     else:
-      trade_size = trade[SIZE_HEADER] * trade[PRICE_HEADER] + trade[FEE_HEADER]
+      trade_size = trade[SIZE] * trade[PRICE] + trade[FEE]
     return trade_size
 
   def determine_basis_size(self, basis_trade: Series) -> Decimal:
 
-    if basis_trade[PRODUCT_HEADER].get_base_asset() == self.asset:
-      basis_size = basis_trade[SIZE_HEADER]
+    if basis_trade[PAIR].get_base_asset() == self.asset:
+      basis_size = basis_trade[SIZE]
     else:
-      basis_size = basis_trade[SIZE_HEADER] * basis_trade[PRICE_HEADER] \
-                   - basis_trade[FEE_HEADER]
+      basis_size = basis_trade[SIZE] * basis_trade[PRICE] \
+                   - basis_trade[FEE]
     return basis_size
 
   @staticmethod
@@ -86,6 +95,6 @@ class TradeProcessor:
     trade_portion = factor_size / total_size
     remainder: Series = trade.copy()
     # trade = trade.copy()
-    trade[[SIZE_HEADER, FEE_HEADER, TOTAL_HEADER]] *= trade_portion
-    remainder[[SIZE_HEADER, FEE_HEADER, TOTAL_HEADER]] *= (1 - trade_portion)
+    trade[[SIZE, FEE, TOTAL]] *= trade_portion
+    remainder[[SIZE, FEE, TOTAL]] *= (1 - trade_portion)
     return trade, remainder

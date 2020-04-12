@@ -6,9 +6,9 @@ import pandas as pd
 
 from calculator.api.exchange_api import ExchangeApi
 from calculator.format import (
-  PRODUCT_HEADER, CREATED_AT_HEADER, SIDE_HEADER, SIZE_HEADER, TRADE_ID_HEADER,
-  PRICE_HEADER, FEE_HEADER, TOTAL_HEADER, TOTAL_IN_USD_HEADER,
-  USD_PER_BTC_HEADER, DELIMINATOR, BUY, SELL, TIME_STRING_FORMAT, COLUMNS,
+  PAIR, TIME, SIDE, SIZE, ID,
+  PRICE, FEE, TOTAL, TOTAL_IN_USD,
+  USD_PER_BTC, DELIMINATOR, BUY, SELL, TIME_STRING_FORMAT, COLUMNS,
   Pair, CONVERTERS)
 
 
@@ -51,7 +51,7 @@ def calculate_all(path, cb_name, trade_name):
       index=False
     )
   assets = set()
-  for pair in trades_df[PRODUCT_HEADER]:
+  for pair in trades_df[PAIR]:
     assets.update(pair.split(DELIMINATOR))
   assets.remove("USD")
   print(
@@ -60,16 +60,16 @@ def calculate_all(path, cb_name, trade_name):
   for asset in assets:
     print("Starting to process {}".format(asset))
     basis_df = cost_basis_df.loc[
-      (((cost_basis_df[PRODUCT_HEADER].str[:len(asset)] == asset) &
-        (cost_basis_df[SIDE_HEADER] == BUY)) |
-       ((cost_basis_df[PRODUCT_HEADER].str[-len(asset):] == asset) &
-        (cost_basis_df[SIDE_HEADER] == SELL))
+      (((cost_basis_df[PAIR].str[:len(asset)] == asset) &
+        (cost_basis_df[SIDE] == BUY)) |
+       ((cost_basis_df[PAIR].str[-len(asset):] == asset) &
+        (cost_basis_df[SIDE] == SELL))
        )
     ]
-    asset_df = trades_df[trades_df[PRODUCT_HEADER].str.contains(asset)]
+    asset_df = trades_df[trades_df[PAIR].str.contains(asset)]
     final_basis_df, p_l_df = calculate_tax_profit_and_loss(
-      asset, basis_df.sort_values(CREATED_AT_HEADER),
-      asset_df.sort_values(CREATED_AT_HEADER)
+      asset, basis_df.sort_values(TIME),
+      asset_df.sort_values(TIME)
     )
     print("Finished processing {}, saving results to csv format".format(asset))
     final_basis_df.to_csv("{}{}_basis.csv".format(path, asset))
@@ -83,16 +83,16 @@ def calculate_tax_profit_and_loss(asset, basis_df, asset_df):
   # wash trade queue
   wash = deque()
   for j, trade in asset_df.iterrows():
-    if trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset:
-      if trade[SIDE_HEADER] == SELL:
+    if trade[PAIR].split(DELIMINATOR)[0] == asset:
+      if trade[SIDE] == SELL:
         # Pull trades from queue until trades is satisfied
         handle_sell(asset, trade, basis_queue, p_l_df, wash)
       else:
         # Add BUY trade to que for basis
         handle_buy(asset, trade, basis_queue, p_l_df, wash)
-    elif trade[PRODUCT_HEADER].split(DELIMINATOR)[1] == asset:
+    elif trade[PAIR].split(DELIMINATOR)[1] == asset:
       # When asset is BTC, it can be the base and needs to be accounted for
-      if trade[SIDE_HEADER] == BUY:
+      if trade[SIDE] == BUY:
         # BUY of an asset with BTC as the quote is a BTC sell pull trades from
         # queue
         handle_sell(asset, trade, basis_queue, p_l_df, wash)
@@ -108,7 +108,7 @@ def calculate_tax_profit_and_loss(asset, basis_df, asset_df):
 
 
 def handle_buy(asset, trade, basis_queue, p_l_df, wash):
-  if len(wash) > 0 and trade[PRODUCT_HEADER].split(DELIMINATOR)[1] == "USD":
+  if len(wash) > 0 and trade[PAIR].split(DELIMINATOR)[1] == "USD":
     # check to see if this buy disqulifes a loss trade in recent past
     size = get_size_per_asset_and_trade(trade, asset)
     # First deal with wash trades
@@ -120,7 +120,7 @@ def handle_buy(asset, trade, basis_queue, p_l_df, wash):
         sell_time = convert_iso_to_datetime(
           p_l_df.loc[p_l_idx]["Timestamp (Sold)"]
         )
-        buy_time = convert_iso_to_datetime(trade[CREATED_AT_HEADER])
+        buy_time = convert_iso_to_datetime(trade[TIME])
         if (buy_time - sell_time).days < 30:
           # Wash trade need to adjust loss
           trade_scale = min(wash_size, size) / size
@@ -182,16 +182,16 @@ def handle_sell(asset, trade, basis_queue, p_l_df, wash):
       adjust_scale = min(buy["Adjusted Size"], entry_size
                          ) / buy["Adjusted Size"]
       adjust_total = (
-          (1 if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
+          (1 if buy[PAIR].split(DELIMINATOR)[0] == asset else -1) *
           buy["Adjust Basis"]
       )
       buy_total = (
-          (1 if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-          buy[TOTAL_IN_USD_HEADER]
+          (1 if buy[PAIR].split(DELIMINATOR)[0] == asset else -1) *
+          buy[TOTAL_IN_USD]
       )
       trade_total = (
-          (1 if trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-          trade[TOTAL_IN_USD_HEADER]
+          (1 if trade[PAIR].split(DELIMINATOR)[0] == asset else -1) *
+          trade[TOTAL_IN_USD]
       )
       p_l = (buy_total * buy_scale + trade_total * sell_scale +
              adjust_total * adjust_scale
@@ -204,69 +204,69 @@ def handle_sell(asset, trade, basis_queue, p_l_df, wash):
       """
       p_l_df.loc[len(p_l_df)] = [
         entry_size,
-        buy[TRADE_ID_HEADER], buy[CREATED_AT_HEADER], buy[PRODUCT_HEADER],
-        buy[SIDE_HEADER], buy[PRICE_HEADER], buy[FEE_HEADER],
-        buy[TOTAL_HEADER], buy[USD_PER_BTC_HEADER],
-        buy[TOTAL_IN_USD_HEADER] * buy_scale,
-        trade[TRADE_ID_HEADER], trade[CREATED_AT_HEADER],
-        trade[PRODUCT_HEADER], trade[SIDE_HEADER], trade[PRICE_HEADER],
-        trade[FEE_HEADER], trade[TOTAL_HEADER], trade[USD_PER_BTC_HEADER],
-        trade[TOTAL_IN_USD_HEADER] * sell_scale,
+        buy[ID], buy[TIME], buy[PAIR],
+        buy[SIDE], buy[PRICE], buy[FEE],
+        buy[TOTAL], buy[USD_PER_BTC],
+        buy[TOTAL_IN_USD] * buy_scale,
+        trade[ID], trade[TIME],
+        trade[PAIR], trade[SIDE], trade[PRICE],
+        trade[FEE], trade[TOTAL], trade[USD_PER_BTC],
+        trade[TOTAL_IN_USD] * sell_scale,
         p_l, 0, buy["Adjusted Note"]
       ]
       buy.loc[["Adjust Basis", "Adjusted Size"]] *= 1 - adjust_scale
     else:
       buy_total = (
-          (1 if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-          buy[TOTAL_IN_USD_HEADER]
+          (1 if buy[PAIR].split(DELIMINATOR)[0] == asset else -1) *
+          buy[TOTAL_IN_USD]
       )
       trade_total = (
-          (1 if trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset else -1) *
-          trade[TOTAL_IN_USD_HEADER]
+          (1 if trade[PAIR].split(DELIMINATOR)[0] == asset else -1) *
+          trade[TOTAL_IN_USD]
       )
       p_l = buy_total * buy_scale + trade_total * sell_scale
       p_l_df.loc[len(p_l_df)] = [
         entry_size,
-        buy[TRADE_ID_HEADER], buy[CREATED_AT_HEADER], buy[PRODUCT_HEADER],
-        buy[SIDE_HEADER], buy[PRICE_HEADER], buy[FEE_HEADER],
-        buy[TOTAL_HEADER], buy[USD_PER_BTC_HEADER],
-        buy[TOTAL_IN_USD_HEADER] * buy_scale,
-        trade[TRADE_ID_HEADER], trade[CREATED_AT_HEADER],
-        trade[PRODUCT_HEADER], trade[SIDE_HEADER], trade[PRICE_HEADER],
-        trade[FEE_HEADER], trade[TOTAL_HEADER], trade[TOTAL_IN_USD_HEADER],
-        trade[TOTAL_IN_USD_HEADER] * sell_scale,
+        buy[ID], buy[TIME], buy[PAIR],
+        buy[SIDE], buy[PRICE], buy[FEE],
+        buy[TOTAL], buy[USD_PER_BTC],
+        buy[TOTAL_IN_USD] * buy_scale,
+        trade[ID], trade[TIME],
+        trade[PAIR], trade[SIDE], trade[PRICE],
+        trade[FEE], trade[TOTAL], trade[TOTAL_IN_USD],
+        trade[TOTAL_IN_USD] * sell_scale,
         p_l, 0, ""
       ]
     # Need to save any losses or proceeding sales to check for wash trade
     if p_l < 0 or (
-        len(wash) > 0 and trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == "USD"
+        len(wash) > 0 and trade[PAIR].split(DELIMINATOR)[0] == "USD"
     ):
       # Add row to wash trade list if loss or wash is not empty
       wash.append((len(p_l_df) - 1, entry_size, p_l))
     buy_size = (
-      buy[SIZE_HEADER] if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset
-      else buy[TOTAL_HEADER]
+      buy[SIZE] if buy[PAIR].split(DELIMINATOR)[0] == asset
+      else buy[TOTAL]
     )
     size -= entry_size
     if buy_size > entry_size:
       # Add scaled buy back to que to use for next sell trade
       buy.loc[
-        [SIZE_HEADER, TOTAL_HEADER, FEE_HEADER, TOTAL_IN_USD_HEADER]
+        [SIZE, TOTAL, FEE, TOTAL_IN_USD]
       ] *= 1 - buy_scale
       basis_queue.appendleft(buy)  # append for FILO vs FIFO
     else:
       # scale sell to remaining amount for next buy
       trade.loc[
-        [SIZE_HEADER, TOTAL_HEADER, FEE_HEADER, TOTAL_IN_USD_HEADER]
+        [SIZE, TOTAL, FEE, TOTAL_IN_USD]
       ] *= 1 - sell_scale
 
 
 def get_size_per_asset_and_trade(trade, asset):
   try:
-    if trade[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset:
-      return trade[SIZE_HEADER]
-    elif trade[PRODUCT_HEADER].split(DELIMINATOR)[1] == asset:
-      return abs(trade[TOTAL_HEADER])  # quote pair size is the total
+    if trade[PAIR].split(DELIMINATOR)[0] == asset:
+      return trade[SIZE]
+    elif trade[PAIR].split(DELIMINATOR)[1] == asset:
+      return abs(trade[TOTAL])  # quote pair size is the total
     else:
       ValueError(
           "Pulled a non {} pair out of trade list:\n{}".format(
@@ -279,12 +279,12 @@ def get_size_per_asset_and_trade(trade, asset):
 
 
 def get_entry_size_and_buy_scale(buy, asset, size):
-  if buy[PRODUCT_HEADER].split(DELIMINATOR)[0] == asset:
-    entry_size = min(size, buy[SIZE_HEADER])
-    buy_scale = entry_size / buy[SIZE_HEADER]
-  elif buy[PRODUCT_HEADER].split(DELIMINATOR)[1] == asset:
-    entry_size = min(size, abs(buy[TOTAL_HEADER]))
-    buy_scale = entry_size / abs(buy[TOTAL_HEADER])
+  if buy[PAIR].split(DELIMINATOR)[0] == asset:
+    entry_size = min(size, buy[SIZE])
+    buy_scale = entry_size / buy[SIZE]
+  elif buy[PAIR].split(DELIMINATOR)[1] == asset:
+    entry_size = min(size, abs(buy[TOTAL]))
+    buy_scale = entry_size / abs(buy[TOTAL])
   else:
     raise ValueError(
       "Pulled a non {} pair out of basis_queue:\n{}".format(
@@ -295,20 +295,20 @@ def get_entry_size_and_buy_scale(buy, asset, size):
 
 
 def add_usd_per(df):
-  usd_not_base_mask = df[PRODUCT_HEADER].str[-3:] != "USD"
+  usd_not_base_mask = df[PAIR].str[-3:] != "USD"
   prices = []
   for i, j in df.loc[usd_not_base_mask].iterrows():
-    close = exchange_api.get_close(j[CREATED_AT_HEADER], Pair.BTC_USD)
+    close = exchange_api.get_close(j[TIME], Pair.BTC_USD)
     prices.append(close)
     # API is rate limited at 3 requests per second
     time.sleep(.4)
-  df.loc[usd_not_base_mask, USD_PER_BTC_HEADER] = prices
-  df.loc[usd_not_base_mask, TOTAL_IN_USD_HEADER] = df.loc[
-    usd_not_base_mask, TOTAL_HEADER] * df.loc[
-      usd_not_base_mask, USD_PER_BTC_HEADER
+  df.loc[usd_not_base_mask, USD_PER_BTC] = prices
+  df.loc[usd_not_base_mask, TOTAL_IN_USD] = df.loc[
+                                                     usd_not_base_mask, TOTAL] * df.loc[
+                                                     usd_not_base_mask, USD_PER_BTC
     ]
-  df.loc[~usd_not_base_mask, TOTAL_IN_USD_HEADER] = df.loc[
-    ~usd_not_base_mask, TOTAL_HEADER]
+  df.loc[~usd_not_base_mask, TOTAL_IN_USD] = df.loc[
+    ~usd_not_base_mask, TOTAL]
 
 
 def convert_iso_to_datetime(iso_time):
