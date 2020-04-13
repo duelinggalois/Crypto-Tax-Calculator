@@ -3,6 +3,9 @@ from collections import deque
 from typing import Tuple, Deque
 from unittest import TestCase
 
+from datetime import datetime, timedelta
+
+import pytz
 from pandas import Series
 from pandas.testing import assert_series_equal
 
@@ -28,11 +31,19 @@ VARIABLE_COL = [SIZE, TOTAL, FEE]
 
 
 class TestTradeProcessor(TestCase):
+  """
+  TODO: Test various sizes for wash
+  """
 
   def setUp(self) -> None:
-    self.time_one = "2017-12-08T08:16:33.034Z"
-    self.time_two = "2017-12-09T08:16:33.034Z"
-    self.time_three = "2018-01-08T18:36:15.826Z"
+    # times taken from examples seen in past trades
+    self.time_one = datetime(2017, 12, 8, 8, 16, 33, 34, pytz.UTC)
+    self.time_two = datetime(2017, 12, 9, 8, 16, 33, 34, pytz.UTC)
+    self.time_three = datetime(2018, 1, 9, 18, 36, 15, 826, pytz.UTC)
+    self.times: Tuple[datetime, ...] = (
+      datetime(2020, 1, 8),
+      datetime(2020, 1, 9)
+    )
     self.id_counter = 0
     # total 15000 * 0.04 + 6 = 606
     self.basis_buy_one = self.get_btc_usd_trade(
@@ -69,7 +80,7 @@ class TestTradeProcessor(TestCase):
 
   def test_sell_removes_buy_from_basis_queue(self):
     trade = self.get_btc_usd_trade(
-      Side.SELL, "2018-02-08T18:36:15.826Z", Decimal("0.04"),
+      Side.SELL, self.time_three, Decimal("0.04"),
       Decimal("16000.00"), Decimal("0.0")
     )
 
@@ -100,7 +111,7 @@ class TestTradeProcessor(TestCase):
 
   def test_smaller_sell_in_p_l_and_basis_queue(self):
     trade = self.get_btc_usd_trade(
-      Side.SELL, "2018-02-08T18:36:15.826Z", Decimal("0.01"),
+      Side.SELL, self.time_three, Decimal("0.01"),
       Decimal("16000.00"), Decimal("0.0")
     )
 
@@ -479,60 +490,95 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(
       entry_two.profit_and_loss, Decimal("0.4"), Decimal("-46.78"))
 
-  def test_wash_trade(self):
+  def test_wash_trade_noop_over_thirty_days(self):
     """
-    If a trade is sold at a loss and then a buy is executed within 30
-    days, the loss can not be realized, but the basis for the wash buy can
-    have a reduced basis equal to the loss.
+    Test noop behavior when wash trade handling is not needed.
     """
-    times = (
-      "2020-01-08T08:16:33.034Z",
-      "2020-01-09T08:16:33.034Z",
-      "2020-01-10T18:36:15.826Z"
-    )
+    over_thirty = self.times[1] + timedelta(30)
 
     buy = self.get_btc_usd_trade(
-      Side.BUY, times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
+      Side.BUY, self.times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
     sell = self.get_btc_usd_trade(
-      Side.SELL, times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
-    wash = self.get_btc_usd_trade(
-      Side.BUY, times[2], Decimal("1"), Decimal("6900"), Decimal("69"))
+      Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
+    non_wash = self.get_btc_usd_trade(
+      Side.BUY, over_thirty, Decimal("1"), Decimal("6900"), Decimal("69"))
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
+    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, non_wash).build()
 
     self.assertEqual(len(b_q), 1, "Wash trade should be in the b_q")
     self.assertEqual(len(p_l), 1, "basis and sell are matched in the p_l")
 
     basis = b_q.popleft()
-    assert_series_equal(basis, wash, check_exact=True)
+    assert_series_equal(basis, non_wash, check_exact=True)
 
     entry_one = p_l.popleft()
     assert_series_equal(entry_one.basis, buy, check_exact=True)
     assert_series_equal(entry_one.proceeds, sell, check_exact=True)
-    # Loss would be 8080 - 6930 = 1150 but nullified by wash trade
-    # self.verify_p_and_l(entry_one.profit_and_loss, buy, sell, Decimal("0"))
-    # self.assertEqual(
-    #   entry_one.profit_and_loss.profit_and_loss, Decimal("-1150"),
-    #   "Starting profit and loss remains, but final will be zero"
-    # )
-    #
-    # # basis should be adjusted from 6969 to 6969 + 1150 = 8119
-    # self.assertEqual(basis[ADJUSTED_VALUE], Decimal("8119"))
+    # Loss would be 8080 - 6930 = 1150
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"), Decimal("-1150"))
+    self.assertEqual(
+      entry_one.profit_and_loss.profit_and_loss, Decimal("-1150"),
+      "Starting profit and loss remains, but final will be zero"
+    )
 
-  # TODO:
-  #  Add wash trade testing
+    # basis should be adjusted from 6969
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("6969"))
 
-  @staticmethod
-  def get_btc_processor(*buys: Series) -> TradeProcessor:
-    return TestTradeProcessor.get_processor(Asset.BTC, *buys)
+  def test_wash_trade_under_thirty_days(self):
+    """
+    If a trade is sold at a loss and then a buy is executed within 30
+    days, the loss can not be realized, but the basis for the wash buy can
+    have a reduced basis equal to the loss.
+    """
+    under_thirty = self.times[1] + timedelta(29, hours=23)
 
-  @staticmethod
-  def get_processor(asset: Asset, *buys: Series) -> TradeProcessor:
-    basis_queue = deque()
-    for buy in buys:
-      basis_queue.append(buy)
-    trade_processor = TradeProcessor(asset, basis_queue)
-    return trade_processor
+    buy = self.get_btc_usd_trade(
+      Side.BUY, self.times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
+    sell = self.get_btc_usd_trade(
+      Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
+    wash = self.get_btc_usd_trade(
+      Side.BUY, under_thirty, Decimal("1"), Decimal("6900"), Decimal("69"))
+
+    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
+    basis = b_q.popleft()
+    entry_one = p_l.popleft()
+
+    # Loss would be 8080 - 6930 = 1150 but adjusted to zero
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"), Decimal("0"))
+    self.assertEqual(
+      entry_one.profit_and_loss.profit_and_loss, Decimal("-1150"),
+      "Starting profit and loss remains, but final will be zero"
+    )
+
+    # basis should be adjusted from 6969 to 6969 + 1150 = 8119
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("8119"))
+
+  def test_wash_trade_smaller_size_than_loss(self):
+    under_thirty = self.times[1] + timedelta(29, hours=23)
+
+    buy = self.get_btc_usd_trade(
+      Side.BUY, self.times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
+    sell = self.get_btc_usd_trade(
+      Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
+    wash = self.get_btc_usd_trade(
+      Side.BUY, under_thirty, Decimal(".2"), Decimal("6900"), Decimal("13.8"))
+
+    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
+    basis = b_q.popleft()
+    entry_one = p_l.popleft()
+
+    # Loss adjusted proportionally -1150 * 0.8 = -920
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"), Decimal("-920"))
+    self.assertEqual(
+      entry_one.profit_and_loss.profit_and_loss, Decimal("-1150"),
+      "Starting profit and loss remains, but final will be zero"
+    )
+    # total is 0.2 * 6900 + 13.8 = 1393.8
+    self.assertEqual(basis[TOTAL_IN_USD], Decimal("1393.8"))
+    # adjusted 1393.8 + (1150 * 0.2) = 1623.8
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("1623.8"))
 
   @staticmethod
   def verify_variable_columns(trade, size_str, total_str, fee_str):
@@ -559,12 +605,12 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(p_and_l.size, size)
     self.assertEqual(p_and_l.profit_and_loss, p_l)
     if final_p_l.is_nan():
-      self.assertEqual(p_and_l.final_profit_and_loss, p_l)
+      self.assertEqual(p_and_l.taxed_profit_and_loss, p_l)
     else:
-      self.assertEqual(p_and_l.final_profit_and_loss, final_p_l)
+      self.assertEqual(p_and_l.taxed_profit_and_loss, final_p_l)
 
   @staticmethod
-  def get_btc_usd_trade(side: Side, time: str, size: Decimal,
+  def get_btc_usd_trade(side: Side, time: datetime, size: Decimal,
       price: Decimal, fee: Decimal):
     return get_trade_for_pair(Pair.BTC_USD, side, time, size, price, fee)
 
@@ -575,6 +621,7 @@ class ProcessorBuilder:
     self.asset: Asset = Asset.BTC
     self.basis_trades: Tuple[Series] = basis_trades
     self.trades_to_process: Tuple[Series] = tuple()
+    self.processor = None
 
   def for_asset(self, asset: Asset) -> "ProcessorBuilder":
     self.asset = asset
@@ -585,7 +632,16 @@ class ProcessorBuilder:
     return self
 
   def build(self) -> Tuple[Deque[Series], Deque[Entry]]:
-    processor = TestTradeProcessor.get_processor(self.asset, *self.basis_trades)
+    processor = self.get_processor(self.asset, *self.basis_trades)
+    self.processor = processor
     for trade in self.trades_to_process:
       processor.handle_trade(trade)
     return processor.basis_queue, processor.profit_loss
+
+  @staticmethod
+  def get_processor(asset: Asset, *buys: Series) -> TradeProcessor:
+    basis_queue = deque()
+    for buy in buys:
+      basis_queue.append(buy)
+    trade_processor = TradeProcessor(asset, basis_queue)
+    return trade_processor

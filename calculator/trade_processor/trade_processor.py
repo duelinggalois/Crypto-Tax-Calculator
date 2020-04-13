@@ -2,11 +2,12 @@ from collections import deque
 from decimal import Decimal
 from typing import Deque, Tuple
 
+from datetime import datetime
 from pandas import Series
 
 from calculator.format import Asset, SIDE, Side, PAIR, \
   SIZE, PRICE, FEE, TOTAL, TIME, TOTAL_IN_USD, ADJUSTED_VALUE
-from calculator.trade_processor.profit_and_loss import Entry
+from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
 
 VARIABLE_COLUMNS = [SIZE, FEE, TOTAL, TOTAL_IN_USD, ADJUSTED_VALUE]
 
@@ -16,9 +17,9 @@ class TradeProcessor:
   def __init__(self, asset: Asset, basis_queue: Deque[Series]):
 
     self.asset: Asset = asset
-    self.basis_queue: Deque[Series] = basis_queue
-    self.wash_check_queue: Deque[Entry] = deque()
-    self.profit_loss: Deque[Entry] = deque()
+    self.basis_queue: Deque[Series, ...] = basis_queue
+    self.wash_check_queue: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
+    self.profit_loss: Deque[Entry, ...] = deque()
 
   def handle_trade(self, trade: Series):
 
@@ -62,14 +63,18 @@ class TradeProcessor:
       else:
         entry = Entry(self.asset, basis_trade, trade)
       if entry.profit_and_loss.is_loss():
-        self.wash_check_queue.append(entry)
+        self.wash_check_queue.append((entry.proceeds[TIME],
+                                      entry.profit_and_loss))
 
       self.profit_loss.append(entry)
       trade_size -= basis_size
 
   def handle_basis_trade(self, trade):
     if len(self.wash_check_queue) > 0:
-      time = trade[TIME]
+      last_loss_time, profit_and_loss = self.wash_check_queue.pop()
+      if (trade[TIME] - last_loss_time).days < 30:
+        # calls to wash_loss throw exception if loss is in fact a gain
+        remaining_portion = profit_and_loss.wash_loss(trade)
 
     self.basis_queue.append(trade)
 

@@ -109,7 +109,7 @@ def calculate_tax_profit_and_loss(asset, basis_df, asset_df):
 
 def handle_buy(asset, trade, basis_queue, p_l_df, wash):
   if len(wash) > 0 and trade[PAIR].split(DELIMINATOR)[1] == "USD":
-    # check to see if this buy disqulifes a loss trade in recent past
+    # check to see if this buy disqualifies a loss trade in recent past
     size = get_size_per_asset_and_trade(trade, asset)
     # First deal with wash trades
     while size > 0 and len(wash) > 0:
