@@ -4,7 +4,8 @@ from typing import Tuple, List
 
 from pandas import Series
 from calculator.format import ID, PAIR, TOTAL_IN_USD, SIZE, \
-  USD_PER_BTC, SIDE, Asset, PRICE, FEE, Side, ADJUSTED_VALUE, Pair, WASH_P_L_IDS
+  USD_PER_BTC, SIDE, Asset, PRICE, FEE, Side, ADJUSTED_VALUE, Pair, \
+  WASH_P_L_IDS, ADJUSTED_SIZE
 from calculator.auto_id_incrementer import AutoIdIncrementer
 
 INVALID_SIZE_MESSAGE = "Sizes must be the same: {}, {}\n" \
@@ -53,21 +54,23 @@ class ProfitAndLoss:
     self.profit_and_loss: Decimal = self.proceeds - self.basis
     self.taxed_profit_and_loss: Decimal = self.profit_and_loss
 
-  def wash_loss(self, wash_trade: Series) -> Decimal:
+  def wash_loss(self, wash_trade: Series):
     self.validate_wash()
     self.wash_loss_basis_ids.append(wash_trade[ID])
     wash_trade[WASH_P_L_IDS].append(self.id)
     size = self.get_basis_size(self.asset, wash_trade)
-    scale_loss = min(1, size / self.unwashed_size)
+    size -= wash_trade[ADJUSTED_SIZE]
+    if size >= self.unwashed_size:
+      adj_size = self.unwashed_size
+      adj_loss = self.taxed_profit_and_loss
+    else:
+      adj_size = size
+      adj_loss = self.taxed_profit_and_loss * adj_size / self.unwashed_size
 
-    # scaled loss < 0
-    scaled_loss = self.taxed_profit_and_loss * scale_loss
-    self.taxed_profit_and_loss -= scaled_loss  # loss goes up less tax write off
-    wash_trade[ADJUSTED_VALUE] -= scaled_loss  # basis goes up less future tax
-
-    remaining_fraction = max(Decimal(0), (size - self.unwashed_size) / size)
-    self.unwashed_size = max(0, self.unwashed_size - size)
-    return remaining_fraction
+    self.taxed_profit_and_loss -= adj_loss  # loss goes up less tax write off
+    wash_trade[ADJUSTED_VALUE] -= adj_loss  # basis goes up less future tax
+    wash_trade[ADJUSTED_SIZE] += adj_size
+    self.unwashed_size -= adj_size
 
   def validate_wash(self):
     if not self.is_loss():

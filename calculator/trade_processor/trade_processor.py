@@ -70,11 +70,17 @@ class TradeProcessor:
       trade_size -= basis_size
 
   def handle_basis_trade(self, trade):
-    if len(self.wash_check_queue) > 0:
-      last_loss_time, profit_and_loss = self.wash_check_queue.pop()
+    size = self.determine_basis_size(trade)
+    while len(self.wash_check_queue) > 0 and size > 0:
+      # using first in first out
+      last_loss_time, profit_and_loss = self.wash_check_queue.popleft()
       if (trade[TIME] - last_loss_time).days < 30:
-        # calls to wash_loss throw exception if loss is in fact a gain
-        remaining_portion = profit_and_loss.wash_loss(trade)
+        p_l_size = profit_and_loss.unwashed_size
+        if p_l_size > size:
+          # loss will not be matched completely
+          self.wash_check_queue.appendleft((last_loss_time, profit_and_loss))
+        profit_and_loss.wash_loss(trade)
+        size -= p_l_size
 
     self.basis_queue.append(trade)
 

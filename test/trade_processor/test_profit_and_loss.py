@@ -202,13 +202,12 @@ class TestProfitAndLoss(TestCase):
     # 5940 - 7070 = -1130
     expected_loss = Decimal("-1130")
     self.assertEqual(p_l.taxed_profit_and_loss, expected_loss)
-    rem_fraction = p_l.wash_loss(wash)
+    p_l.wash_loss(wash)
     self.assertEqual(p_l.profit_and_loss, expected_loss)
     # Wash loss makes final p and l zero
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
     # adjusted 5050 + 1130
     self.assertEqual(wash[ADJUSTED_VALUE], Decimal("6180"))
-    self.assertEqual(rem_fraction, Decimal("0"), "rem_fraction basis size")
 
   def test_small_wash_trade(self):
     basis = get_mock_trade(
@@ -223,12 +222,11 @@ class TestProfitAndLoss(TestCase):
 
     p_l = ProfitAndLoss(Asset.BTC, basis, proceeds)
 
-    rem_fraction = p_l.wash_loss(wash)
+    p_l.wash_loss(wash)
     # Wash loss -1130 / 4 = -282.5
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("-282.5"))
     # adjust 5000 * 3/4 + 37.5 + 1130 * 3/4 = -847.50
     self.assertEqual(wash[ADJUSTED_VALUE], Decimal("4635"))
-    self.assertEqual(rem_fraction, Decimal("0"), "rem_fraction basis size")
 
   def test_larger_trade_returns_rem_fraction(self):
     basis = get_mock_trade(
@@ -243,13 +241,11 @@ class TestProfitAndLoss(TestCase):
       Decimal("60"))
     p_l = ProfitAndLoss(Asset.BTC, basis, proceeds)
 
-    rem_fraction = p_l.wash_loss(wash)
+    p_l.wash_loss(wash)
     # Wash size exceeds loss size
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
     # adjust (1.2 * 5000 + 60) + 1130 = 7190
     self.assertEqual(wash[ADJUSTED_VALUE], Decimal("7190"))
-    # rem_fraction 0.2 / 1.2 = 1/6
-    self.assertEqual(rem_fraction, Decimal("1") / Decimal("6"))
 
   def test_multiple_washes(self):
     basis = get_mock_trade(
@@ -269,21 +265,18 @@ class TestProfitAndLoss(TestCase):
       Decimal("0"))
     p_l = ProfitAndLoss(Asset.BTC, basis, proceeds)
 
-    rem_one = p_l.wash_loss(wash_one)
+    p_l.wash_loss(wash_one)
     # adjust -1130 * 3/4 = -847.50
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("-847.5"))
-    rem_two = p_l.wash_loss(wash_two)
+    p_l.wash_loss(wash_two)
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("-282.5"))
-    rem_three = p_l.wash_loss(wash_three)
+    p_l.wash_loss(wash_three)
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
     # Wash loss (0.25 * 5000) + (0.25 * 1130) = 1532.5
     self.assertEqual(wash_one[ADJUSTED_VALUE], Decimal("1532.5"))
     # Wash loss (0.5 * 5000) + (0.5 * 1130) = 3065
     self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("3065"))
     self.assertEqual(wash_three[ADJUSTED_VALUE], Decimal("1532.5"))
-    self.assertEqual(rem_one, Decimal("0"))
-    self.assertEqual(rem_two, Decimal("0"))
-    self.assertEqual(rem_three, Decimal("0"))
 
   def test_mismatched_pair(self):
     basis = get_mock_trade(
@@ -298,12 +291,11 @@ class TestProfitAndLoss(TestCase):
       Decimal("0.008")
     )
     p_l = ProfitAndLoss(Asset.BTC, basis, proceeds)
-    rem_fraction = p_l.wash_loss(eth_btc_wash)
+    p_l.wash_loss(eth_btc_wash)
     # p_l -1130 * 0.2 = -226
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("-226"))
     # adjust 5000 * 0.8 + 1130 * 0.8 = 4904
     self.assertEqual(eth_btc_wash[ADJUSTED_VALUE], Decimal("4904"))
-    self.assertEqual(rem_fraction, Decimal("0"))
 
   def test_mismatch_exceeds_size(self):
     basis = get_mock_trade(
@@ -318,12 +310,10 @@ class TestProfitAndLoss(TestCase):
       Decimal("0.012"))
 
     p_l = ProfitAndLoss(Asset.BTC, basis, proceeds)
-    rem_fraction = p_l.wash_loss(eth_btc_wash)
+    p_l.wash_loss(eth_btc_wash)
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
     # adjust (1.2 * 5000) + 1130 = 7130 (5000 is default btc per usd)
     self.assertEqual(eth_btc_wash[ADJUSTED_VALUE], Decimal("7130"))
-    # rem_fraction 0.2 / 1.2 = 1/6
-    self.assertEqual(rem_fraction, Decimal("1") / Decimal("6"))
 
   def test_id_matching_for_wash_trades(self):
     basis = get_mock_trade(
@@ -377,10 +367,9 @@ class TestProfitAndLoss(TestCase):
     p_l = ProfitAndLoss(Asset.BTC, basis, proceeds)
     # redundant to test results
     p_l.wash_loss(wash_one)
-    rem_two = p_l.wash_loss(wash_two)
+    p_l.wash_loss(wash_two)
     # adj 2500 + (0.25 * 1130) =
     self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("2782.5"))
-    self.assertEqual(rem_two, Decimal("0.5"))
 
   def assert_basis_raises_exception(self, asset, basis, proceeds):
     with self.assertRaises(ValueError) as context:

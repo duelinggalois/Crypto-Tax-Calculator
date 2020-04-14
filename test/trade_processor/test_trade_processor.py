@@ -31,9 +31,6 @@ VARIABLE_COL = [SIZE, TOTAL, FEE]
 
 
 class TestTradeProcessor(TestCase):
-  """
-  TODO: Test various sizes for wash
-  """
 
   def setUp(self) -> None:
     # times taken from examples seen in past trades
@@ -55,6 +52,7 @@ class TestTradeProcessor(TestCase):
       Side.BUY, self.time_two, Decimal("0.02"),
       Decimal("15050.00"), Decimal("3.01")
     )
+    test_helpers.exchange.set_btc_per_usd("5000")
 
   def test_buy_added_to_basis_queue(self):
     basis_buy = self.get_btc_usd_trade(
@@ -516,11 +514,6 @@ class TestTradeProcessor(TestCase):
     assert_series_equal(entry_one.proceeds, sell, check_exact=True)
     # Loss would be 8080 - 6930 = 1150
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"), Decimal("-1150"))
-    self.assertEqual(
-      entry_one.profit_and_loss.profit_and_loss, Decimal("-1150"),
-      "Starting profit and loss remains, but final will be zero"
-    )
-
     # basis should be adjusted from 6969
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal("6969"))
 
@@ -546,15 +539,42 @@ class TestTradeProcessor(TestCase):
     # Loss would be 8080 - 6930 = 1150 but adjusted to zero
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("-1150"), Decimal("0"))
-    self.assertEqual(
-      entry_one.profit_and_loss.profit_and_loss, Decimal("-1150"),
-      "Starting profit and loss remains, but final will be zero"
-    )
-
     # basis should be adjusted from 6969 to 6969 + 1150 = 8119
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal("8119"))
 
-  def test_wash_trade_smaller_size_than_loss(self):
+  def test_wash_trades_smaller_size_than_loss(self):
+    under_thirty = self.times[1] + timedelta(29, hours=23)
+
+    buy = self.get_btc_usd_trade(
+      Side.BUY, self.times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
+    sell = self.get_btc_usd_trade(
+      Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
+    wash_one = self.get_btc_usd_trade(
+      Side.BUY, under_thirty, Decimal("0.2"), Decimal("6900"), Decimal("13.8"))
+    wash_two = self.get_btc_usd_trade(
+      Side.BUY, under_thirty, Decimal("0.6"), Decimal("7000"), Decimal("42"))
+
+    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash_one, wash_two)\
+      .build()
+    self.assertEqual(len(b_q), 2)
+    self.assertEqual(len(p_l), 1)
+    basis_one = b_q.popleft()
+    basis_two = b_q.popleft()
+    entry_one = p_l.popleft()
+
+    # Loss adjusted proportionally -1150 * (1 - 0.2 - 0.6) = -230
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"), Decimal("-230"))
+    # total is 0.2 * 6900 + 13.8 = 1393.8
+    self.assertEqual(basis_one[TOTAL_IN_USD], Decimal("1393.8"))
+    # adjusted 1393.8 + (1150 * 0.2) = 1623.8
+    self.assertEqual(basis_one[ADJUSTED_VALUE], Decimal("1623.8"))
+    # total is 0.6 * 7000 + 42 = 4242
+    self.assertEqual(basis_two[TOTAL_IN_USD], Decimal("4242"))
+    # adjusted 4242 + (1150 * 0.6) = 4932
+    self.assertEqual(basis_two[ADJUSTED_VALUE], Decimal("4932"))
+
+  def test_wash_trade_larger_size_than_trade(self):
     under_thirty = self.times[1] + timedelta(29, hours=23)
 
     buy = self.get_btc_usd_trade(
@@ -562,23 +582,98 @@ class TestTradeProcessor(TestCase):
     sell = self.get_btc_usd_trade(
       Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
     wash = self.get_btc_usd_trade(
-      Side.BUY, under_thirty, Decimal(".2"), Decimal("6900"), Decimal("13.8"))
+      Side.BUY, under_thirty, Decimal("1.2"), Decimal("6900"), Decimal("82.8"))
 
     b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
     basis = b_q.popleft()
     entry_one = p_l.popleft()
 
-    # Loss adjusted proportionally -1150 * 0.8 = -920
+    # Loss removed
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
-                        Decimal("-1150"), Decimal("-920"))
-    self.assertEqual(
-      entry_one.profit_and_loss.profit_and_loss, Decimal("-1150"),
-      "Starting profit and loss remains, but final will be zero"
-    )
-    # total is 0.2 * 6900 + 13.8 = 1393.8
-    self.assertEqual(basis[TOTAL_IN_USD], Decimal("1393.8"))
-    # adjusted 1393.8 + (1150 * 0.2) = 1623.8
-    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("1623.8"))
+                        Decimal("-1150"), Decimal("0"))
+    # total is 1.2 * 6900 + 82.8 = 8362.8
+    self.assertEqual(basis[TOTAL_IN_USD], Decimal("8362.8"))
+    # adjusted 8362.8 + 1150 = = 9512.8
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("9512.8"))
+
+  def test_wash_trade_larger_size_washes_next_loss(self):
+    buy_time = self.times[0] - timedelta(1)
+    under_thirty = self.times[1] + timedelta(29, hours=23)
+
+    buy = self.get_btc_usd_trade(
+      Side.BUY, buy_time, Decimal("1"), Decimal("9000"),
+      Decimal("90"))
+    buy_two = self.get_btc_usd_trade(
+      Side.BUY, self.times[0], Decimal(".5"), Decimal("8000"), Decimal("40"))
+    sell = self.get_btc_usd_trade(
+      Side.SELL, self.times[1], Decimal("1.5"), Decimal("7000"), Decimal("105"))
+    wash = self.get_btc_usd_trade(
+      Side.BUY, under_thirty, Decimal("1.25"), Decimal("6900"), Decimal("86.25"))
+
+    b_q, p_l = ProcessorBuilder(buy, buy_two).process_trades(sell, wash).build()
+    self.assertEqual(len(b_q), 1)
+    self.assertEqual(len(p_l), 2)
+    basis = b_q.popleft()
+    entry_one = p_l.popleft()
+    entry_two = p_l.popleft()
+
+    # total in usd (7000 -70) - (9000 + 90) = -2160
+    # trade is washed first (FIFO)
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-2160"), Decimal("0"))
+    # total (7000 * 1.5 - 105) /3 - ((8000 * .5) + 40) = -575
+    # last p_l is half washed -575 * 0.25 / (1.5 - 1) = -287.5
+    self.verify_p_and_l(entry_two.profit_and_loss, Decimal(".5"),
+                        Decimal("-575"), Decimal("-287.5"))
+
+    self.validate_basis(basis, "8711.25", "11158.75")
+
+  def validate_basis(self, basis, total_in_usd, adjusted_value):
+    # total is 1.25 * 6900 + 86.25 = 8711.25
+    self.assertEqual(basis[TOTAL_IN_USD], Decimal(total_in_usd))
+    # adjusted 8711.25 + 2160 + 287.5 = 11158.75
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal(adjusted_value))
+
+  def test_mismatch_wash(self):
+    buy_time = self.times[0] - timedelta(1)
+    under_thirty = self.times[1] + timedelta(29, hours=23)
+    test_helpers.exchange.set_btc_per_usd("6000")
+
+    buy = self.get_btc_usd_trade(
+      Side.BUY, buy_time, Decimal("1"), Decimal("9000"),
+      Decimal("90"))
+    buy_two = self.get_btc_usd_trade(
+      Side.BUY, self.times[0], Decimal(".5"), Decimal("8000"), Decimal("40"))
+    sell = self.get_btc_usd_trade(
+      Side.SELL, self.times[1], Decimal("1.5"), Decimal("7000"), Decimal("105"))
+
+    # Size .8 BTC = 4.04 * 0.2 - 0.008
+    wash = get_trade_for_pair(Pair.LTC_BTC, Side.SELL, under_thirty,
+                              Decimal("4.04"), Decimal("0.2"), Decimal("0.008"))
+    # Size .4 BTC = 2.02 * 0.2 - 0.004
+    wash_two = get_trade_for_pair(
+      Pair.LTC_BTC, Side.SELL, under_thirty, Decimal("2.02"), Decimal("0.2"),
+      Decimal("0.004"))
+
+    b_q, p_l = ProcessorBuilder(buy, buy_two)\
+      .process_trades(sell, wash, wash_two)\
+      .build()
+    self.assertEqual(len(b_q), 2)
+    self.assertEqual(len(p_l), 2)
+    entry = p_l.popleft()
+    entry_two = p_l.popleft()
+
+    self.verify_p_and_l(entry.profit_and_loss, Decimal("1"),
+                        Decimal("-2160"), Decimal("0"))
+    # unwashed  3/5 * -575 = -345
+    self.verify_p_and_l(entry_two.profit_and_loss, Decimal(".5"),
+                        Decimal("-575"), Decimal("-345"))
+    basis = b_q.popleft()
+    basis_two = b_q.popleft()
+    # total 0.8 * 6000 = 4800 adjusted 4800 + 2160 * 0.8 = 6528
+    self.validate_basis(basis, "4800", "6528")
+    # total 0.4 * 6000 = 2400 adjusted 2400 + 2160 * 0.2 + 575 * 2/5 = 3062
+    self.validate_basis(basis_two, "2400", "3062")
 
   @staticmethod
   def verify_variable_columns(trade, size_str, total_str, fee_str):
@@ -600,14 +695,14 @@ class TestTradeProcessor(TestCase):
       p_and_l: ProfitAndLoss,
       size: Decimal,
       p_l: Decimal,
-      final_p_l: Decimal = Decimal("NaN"),
+      expected_taxed_p_l: Decimal = Decimal("NaN"),
   ) -> None:
     self.assertEqual(p_and_l.size, size)
     self.assertEqual(p_and_l.profit_and_loss, p_l)
-    if final_p_l.is_nan():
+    if expected_taxed_p_l.is_nan():
       self.assertEqual(p_and_l.taxed_profit_and_loss, p_l)
     else:
-      self.assertEqual(p_and_l.taxed_profit_and_loss, final_p_l)
+      self.assertEqual(p_and_l.taxed_profit_and_loss, expected_taxed_p_l)
 
   @staticmethod
   def get_btc_usd_trade(side: Side, time: datetime, size: Decimal,

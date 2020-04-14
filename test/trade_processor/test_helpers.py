@@ -8,7 +8,7 @@ from pandas import Series
 from calculator.auto_id_incrementer import AutoIdIncrementer
 from calculator.format import Pair, Side, Asset, ID, PAIR, SIDE, TIME, SIZE, \
   SIZE_UNIT, PRICE, FEE, P_F_T_UNIT, TOTAL, USD_PER_BTC, TOTAL_IN_USD, \
-  ADJUSTED_VALUE, WASH_P_L_IDS
+  ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
 
 
 def get_trade_for_pair(pair: Pair, side: Side, time: datetime,
@@ -77,6 +77,7 @@ def get_trade(
     USD_PER_BTC: usd_per_btc,
     TOTAL_IN_USD: value,
     ADJUSTED_VALUE: value,
+    ADJUSTED_SIZE: Decimal(0),
     WASH_P_L_IDS: []
   })
 
