@@ -141,7 +141,7 @@ class TestProfitAndLoss(TestCase):
 
     self.assert_proceeds_raises_exception(Asset.BTC, basis, proceeds)
 
-  @unittest.skip("See TODO in validate_sizes, currently prints trade")
+  @unittest.skip("TODO: issue #8 see validate_sizes, currently printing trade")
   def test_mismatched_size_raises_exception(self):
     basis = get_mock_trade(
       Pair.BTC_USD, Side.BUY, Decimal("1"), Decimal("7000"),
@@ -156,7 +156,7 @@ class TestProfitAndLoss(TestCase):
       Asset.BTC, basis, basis[SIZE], proceeds, proceeds[SIZE]
     )
 
-  @unittest.skip("See TODO in validate_sizes, currently prints trade")
+  @unittest.skip("TODO: issue #8 see validate_sizes, currently printing trade")
   def test_mismatched_size_for_mismatched_basis_throws_exception(self):
     # basis size in btc is 200 * 0.005 - 0.01 = 0.99
     basis = get_mock_trade(
@@ -174,7 +174,7 @@ class TestProfitAndLoss(TestCase):
       proceeds[SIZE]
     )
 
-  @unittest.skip("See TODO in validate_sizes, currently prints trade")
+  @unittest.skip("TODO: issue #8 see validate_sizes, currently printing trade")
   def test_mismatched_size_for_mismatched_proceeds_throws_exception(self):
     basis = get_mock_trade(
       Pair.BTC_USD, Side.BUY, Decimal("1"), Decimal("7000"),

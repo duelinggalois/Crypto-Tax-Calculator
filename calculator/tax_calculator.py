@@ -104,10 +104,9 @@ def calculate_all(path, cb_name, trade_name):
     print("Finished processing {}, saving results to csv format".format(asset))
 
     final_basis_df.to_csv("{}{}_basis.csv".format(path, asset))
-    """
-    TODO: it would be ideal to concatenate the basis and proceeds matched
-    # trades into one sheet.
-    """
+
+    # TODO (issue #9): It would be ideal to concatenate the basis and proceeds
+    #   matched trades into one sheet.
     # final_trade_match_df.to_csv("{}{}_trade_match.csv".format(path, asset))
     basis_side_df.to_csv("{}{}_matched_basis_trades.csv")
     proceeds_side_df.to_csv("{}{}_mathced_proceeds_trades.csv")

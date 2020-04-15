@@ -138,7 +138,8 @@ class ProfitAndLoss:
       basis: Series, b_size: Decimal, proceeds: Series, p_size: Decimal
   ) -> None:
     if p_size != b_size:
-      # TODO Thees off by rounding error issues needs to be flushed out for BTC.
+      # TODO (issue #8) Thees off by rounding error issues needs to be flushed
+      #  out for BTC.
       # raise ValueError(
       #   INVALID_MATCH(basis, b_size, proceeds, p_size)
       # )
