@@ -3,7 +3,8 @@ import time
 
 import requests
 
-from calculator.format import Pair, TIME_STRING_FORMAT
+from calculator.format import TIME_STRING_FORMAT
+from calculator.trade_types import Pair
 
 BASE_URL = "https://api.pro.coinbase.com/products/"
 

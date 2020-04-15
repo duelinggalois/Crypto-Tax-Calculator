@@ -6,9 +6,10 @@ import pytz
 from pandas import Series
 
 from calculator.auto_id_incrementer import AutoIdIncrementer
-from calculator.format import Pair, Side, Asset, ID, PAIR, SIDE, TIME, SIZE, \
+from calculator.format import ID, PAIR, SIDE, TIME, SIZE, \
   SIZE_UNIT, PRICE, FEE, P_F_T_UNIT, TOTAL, USD_PER_BTC, TOTAL_IN_USD, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
+from calculator.trade_types import Pair, Asset, Side
 
 
 def get_trade_for_pair(pair: Pair, side: Side, time: datetime,

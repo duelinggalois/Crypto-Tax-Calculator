@@ -1,12 +1,14 @@
 from collections import deque
 from decimal import Decimal
+from fractions import Fraction
 from typing import Deque, Tuple
 
 from datetime import datetime
 from pandas import Series
 
-from calculator.format import Asset, SIDE, Side, PAIR, \
-  SIZE, PRICE, FEE, TOTAL, TIME, TOTAL_IN_USD, ADJUSTED_VALUE
+from calculator.format import SIDE, PAIR, SIZE, PRICE, FEE, TOTAL, TIME,\
+  TOTAL_IN_USD, ADJUSTED_VALUE
+from calculator.trade_types import Asset, Side
 from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
 
 VARIABLE_COLUMNS = [SIZE, FEE, TOTAL, TOTAL_IN_USD, ADJUSTED_VALUE]
@@ -72,15 +74,7 @@ class TradeProcessor:
   def handle_basis_trade(self, trade):
     size = self.determine_basis_size(trade)
     while len(self.wash_check_queue) > 0 and size > 0:
-      # using first in first out
-      last_loss_time, profit_and_loss = self.wash_check_queue.popleft()
-      if (trade[TIME] - last_loss_time).days < 30:
-        p_l_size = profit_and_loss.unwashed_size
-        if p_l_size > size:
-          # loss will not be matched completely
-          self.wash_check_queue.appendleft((last_loss_time, profit_and_loss))
-        profit_and_loss.wash_loss(trade)
-        size -= p_l_size
+      size = self.handle_wash_trade(size, trade)
 
     self.basis_queue.append(trade)
 
@@ -101,12 +95,29 @@ class TradeProcessor:
                    - basis_trade[FEE]
     return basis_size
 
+  def handle_wash_trade(self, size, trade):
+    # using first in first out
+    last_loss_time, profit_and_loss = self.wash_check_queue.popleft()
+    if (trade[TIME] - last_loss_time).days < 30:
+      p_l_size = profit_and_loss.unwashed_size
+      if p_l_size > size:
+        # loss will not be matched completely
+        self.wash_check_queue.appendleft((last_loss_time, profit_and_loss))
+      profit_and_loss.wash_loss(trade)
+      size -= p_l_size
+    return size
+
   @staticmethod
   def spit_trade_to_match(trade: Series, factor_size: Decimal,
                           total_size: Decimal) -> Tuple[Series, Series]:
 
-    trade_portion = factor_size / total_size
+    trade_portion = Fraction(factor_size) / Fraction(total_size)
     remainder: Series = trade.copy()
-    trade[VARIABLE_COLUMNS] *= trade_portion
-    remainder[VARIABLE_COLUMNS] *= (1 - trade_portion)
+    trade[VARIABLE_COLUMNS] *= trade_portion.numerator
+    trade[VARIABLE_COLUMNS] /= trade_portion.denominator
+    trade[VARIABLE_COLUMNS].apply(trade[PAIR].quantize())
+    remainder[VARIABLE_COLUMNS] *= trade_portion.denominator \
+                                   - trade_portion.numerator
+    remainder[VARIABLE_COLUMNS] /= trade_portion.denominator
+    remainder[VARIABLE_COLUMNS].apply(trade[PAIR].quantize())
     return trade, remainder

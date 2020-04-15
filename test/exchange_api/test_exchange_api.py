@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, call
 from requests.models import Response
 
 from calculator.api.exchange_api import ExchangeApi, get_next_minute
-from calculator.format import Pair
+from calculator.trade_types import Pair
 
 RATE_LIMIT_EXCEEDED = {"message": 'Slow rate limit exceeded'}
 

@@ -1,11 +1,11 @@
 from decimal import Decimal
 import pprint
-from typing import Tuple, List
+from typing import List
 
 from pandas import Series
 from calculator.format import ID, PAIR, TOTAL_IN_USD, SIZE, \
-  USD_PER_BTC, SIDE, Asset, PRICE, FEE, Side, ADJUSTED_VALUE, Pair, \
-  WASH_P_L_IDS, ADJUSTED_SIZE
+  USD_PER_BTC, SIDE, PRICE, FEE, ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
+from calculator.trade_types import Pair, Asset, Side
 from calculator.auto_id_incrementer import AutoIdIncrementer
 
 INVALID_SIZE_MESSAGE = "Sizes must be the same: {}, {}\n" \
@@ -19,6 +19,7 @@ INVALID_MATCH = lambda b, b_size, p, p_size: INVALID_SIZE_MESSAGE.format(
 INVALID_TRADE_MESSAGE = "Invalid basis {} trade for {}:\n{}"
 INVALID_TRADE = lambda a, b, t: INVALID_TRADE_MESSAGE.format(t, a, b)
 auto_incrementer = AutoIdIncrementer()
+
 
 class Entry:
   """
@@ -53,6 +54,24 @@ class ProfitAndLoss:
     self.proceeds: Decimal = self.get_value(proceeds)
     self.profit_and_loss: Decimal = self.proceeds - self.basis
     self.taxed_profit_and_loss: Decimal = self.profit_and_loss
+
+  def get_series(self) -> Series:
+    return Series(
+      {
+        "id": self.id,
+        "asset": self.asset,
+        "size": self.size,
+        "basis id": self.basis_id,
+        "basis pair": self.basis_pair,
+        "basis": self.basis,
+        "proceeds id": self.proceeds_id,
+        "proceeds pair": self.proceeds_pair,
+        "proceeds": self.proceeds,
+        "profit and loss": self.profit_and_loss,
+        "adjusted for wash loss": self.taxed_profit_and_loss,
+        "ids for adjusted basis": self.wash_loss_basis_ids
+      }
+    )
 
   def wash_loss(self, wash_trade: Series):
     self.validate_wash()
@@ -119,9 +138,13 @@ class ProfitAndLoss:
       basis: Series, b_size: Decimal, proceeds: Series, p_size: Decimal
   ) -> None:
     if p_size != b_size:
-      raise ValueError(
-        INVALID_MATCH(basis, b_size, proceeds, p_size)
-      )
+      # TODO Thees off by rounding error issues needs to be flushed out for BTC.
+      # raise ValueError(
+      #   INVALID_MATCH(basis, b_size, proceeds, p_size)
+      # )
+      print("Mismatched sizes\n\nBasis:\n{}\n\nProceeds:\n{}".format(
+        basis, proceeds
+      ))
 
   def __repr__(self):
     return pprint.pformat(self.__dict__)

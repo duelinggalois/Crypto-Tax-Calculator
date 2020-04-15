@@ -10,13 +10,14 @@ from pandas import Series
 from pandas.testing import assert_series_equal
 
 from calculator.format import (
-  Pair, Side, ID, TOTAL_IN_USD, USD_PER_BTC,
+  ID, TOTAL_IN_USD, USD_PER_BTC,
   TOTAL, P_F_T_UNIT, FEE, SIZE_UNIT,
-  SIZE, TIME, SIDE, PAIR, Asset, ADJUSTED_VALUE)
+  SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE)
+from calculator.trade_types import Pair, Asset, Side
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, Entry
 from calculator.trade_processor.trade_processor import TradeProcessor
-from test.trade_processor import test_helpers
-from test.trade_processor.test_helpers import get_trade_for_pair
+import test_helpers
+from test_helpers import get_trade_for_pair
 
 FIXED_COL = [
   ID,
