@@ -8,7 +8,7 @@ import pandas as pd
 from calculator.api.exchange_api import ExchangeApi
 from calculator.format import (
   PAIR, TIME, SIDE, TOTAL, TOTAL_IN_USD, USD_PER_BTC, ADJUSTED_VALUE,
-  WASH_P_L_IDS, ADJUSTED_SIZE)
+  WASH_P_L_IDS, ADJUSTED_SIZE, TIME_STRING_FORMAT)
 from calculator.converters import CONVERTERS
 from calculator.trade_types import Asset, Side, Pair
 from calculator.trade_processor.trade_processor import TradeProcessor
@@ -51,9 +51,9 @@ def calculate_all(path, cb_name, trade_name):
       "{}{}_with_usd_per.csv".format(path, cb_name[:-4]),
       index=False
     )
-  cost_basis_df[ADJUSTED_VALUE] = Decimal("NaN")
+  cost_basis_df[ADJUSTED_VALUE] = cost_basis_df[TOTAL_IN_USD]
   cost_basis_df[ADJUSTED_SIZE] = Decimal(0)
-  trades_df[ADJUSTED_VALUE] = Decimal("NaN")
+  trades_df[ADJUSTED_VALUE] = trades_df[TOTAL_IN_USD]
   trades_df[ADJUSTED_SIZE] = Decimal(0)
   trades_df[WASH_P_L_IDS] = pd.Series([] for i in range(len(trades_df)))
   assets: Set[Asset] = set()
@@ -93,31 +93,42 @@ def calculate_all(path, cb_name, trade_name):
     final_basis_df = pd.DataFrame(processor.basis_queue)
     basis_side_df = pd.DataFrame(
       (e.basis for e in processor.profit_loss)
-    )
+    ).reset_index(drop=True)
     proceeds_side_df = pd.DataFrame(
       (e.proceeds for e in processor.profit_loss)
+    ).reset_index(drop=True)
+    final_trade_match_df = pd.concat(
+      [basis_side_df, proceeds_side_df], axis=1,
+      keys=["Basis Trades", "Proceeds Trade"]
     )
     final_p_l_df = pd.DataFrame(
       (e.profit_and_loss.get_series() for e in processor.profit_loss)
-    )
+    ).set_index("id")
 
     print("Finished processing {}, saving results to csv format".format(asset))
 
-    final_basis_df.to_csv("{}{}_basis.csv".format(path, asset))
+    final_basis_df.to_csv("{}{}_basis.csv".format(path, asset),
+                          date_format=TIME_STRING_FORMAT)
 
-    # TODO (issue #9): It would be ideal to concatenate the basis and proceeds
-    #   matched trades into one sheet.
-    # final_trade_match_df.to_csv("{}{}_trade_match.csv".format(path, asset))
-    basis_side_df.to_csv("{}{}_matched_basis_trades.csv")
-    proceeds_side_df.to_csv("{}{}_mathced_proceeds_trades.csv")
-    final_p_l_df.to_csv("{}{}_profit_and_loss.csv".format(path, asset))
+    final_trade_match_df.to_csv("{}{}_trade_match.csv".format(path, asset),
+                                date_format = TIME_STRING_FORMAT)
+    final_p_l_df.to_csv("{}{}_profit_and_loss.csv".format(path, asset),
+                        date_format=TIME_STRING_FORMAT)
 
 
-def calculate_tax_profit_and_loss(asset, basis_df, asset_df):
+def calculate_tax_profit_and_loss(asset, basis_df, asset_df: pd.DataFrame):
   basis_queue = deque(j for i, j in basis_df.iterrows())
   processor = TradeProcessor(asset, basis_queue)
+  trade_count = len(asset_df)
+  chunks_size = trade_count // 10 + 1
+  chunk = 0
+  count = 0
+  print("Processing {} Trades".format(trade_count))
   for j, trade in asset_df.iterrows():
+    if count % chunks_size == 0:
+      print("[{}{}]".format("*" * chunk, " " * chunk), end="\r")
     processor.handle_trade(trade)
+    count += 1
   return processor
 
 
@@ -131,8 +142,8 @@ def add_usd_per(df):
     time.sleep(.4)
   df.loc[usd_not_base_mask, USD_PER_BTC] = prices
   df.loc[usd_not_base_mask, TOTAL_IN_USD] = df.loc[
-                                                     usd_not_base_mask, TOTAL] * df.loc[
-                                                     usd_not_base_mask, USD_PER_BTC
-    ]
+    usd_not_base_mask, TOTAL] * df.loc[
+    usd_not_base_mask, USD_PER_BTC
+  ]
   df.loc[~usd_not_base_mask, TOTAL_IN_USD] = df.loc[
     ~usd_not_base_mask, TOTAL]

@@ -115,9 +115,9 @@ class TradeProcessor:
     remainder: Series = trade.copy()
     trade[VARIABLE_COLUMNS] *= trade_portion.numerator
     trade[VARIABLE_COLUMNS] /= trade_portion.denominator
-    trade[VARIABLE_COLUMNS].apply(trade[PAIR].quantize())
+    trade[VARIABLE_COLUMNS].apply(trade[PAIR].quantize)
     remainder[VARIABLE_COLUMNS] *= trade_portion.denominator \
                                    - trade_portion.numerator
     remainder[VARIABLE_COLUMNS] /= trade_portion.denominator
-    remainder[VARIABLE_COLUMNS].apply(trade[PAIR].quantize())
+    remainder[VARIABLE_COLUMNS].apply(trade[PAIR].quantize)
     return trade, remainder
