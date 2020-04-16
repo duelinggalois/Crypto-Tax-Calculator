@@ -1,6 +1,10 @@
+from decimal import Decimal
 from unittest import TestCase, mock
 from unittest.mock import MagicMock, call
 
+from datetime import datetime
+
+from pytz import UTC
 from requests.models import Response
 
 from calculator.api.exchange_api import ExchangeApi, get_next_minute
@@ -12,46 +16,48 @@ RATE_LIMIT_EXCEEDED = {"message": 'Slow rate limit exceeded'}
 class TestExchangeApi(TestCase):
 
   def test_next_minute(self):
-    iso_start_time = "2018-04-20T14:31:20.458Z"
+    iso_start_time = datetime(2018, 4, 20, 14, 31, 20, 458000, tzinfo=UTC)
     expected_results = "2018-04-20T14:32:20.458000Z"
 
     self.assertEqual(expected_results, get_next_minute(iso_start_time))
 
   @mock.patch("calculator.api.exchange_api.requests.get")
   def test_get_close_mock(self, mock_get: MagicMock):
-    iso_start_time = "2018-04-20T14:31:18.458Z"
+    iso_start_time = "2018-04-20T14:31:18.458000Z"
     iso_expected_end = "2018-04-20T14:32:18.458000Z"
+    start_time = datetime(2018, 4, 20, 14, 31, 18, 458000, tzinfo=UTC)
     pair = Pair.BTC_USD
     expected_url = (
       "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
       "granularity=60"
-    ).format(pair.value, iso_start_time, iso_expected_end)
-    expected_close = 8883.56
+    ).format("BTC-USD", iso_start_time, iso_expected_end)
+    expected_close = Decimal("8883.56")
 
     api = ExchangeApi()
-    mock_get.return_value = get_stub_response(expected_close)
-    close = api.get_close(iso_start_time, pair)
+    mock_get.return_value = get_stub_response(8883.56)
+    close = api.get_close(start_time, pair)
 
     self.assertEqual(expected_close, close)
     mock_get.assert_called_once_with(expected_url)
 
   @mock.patch("calculator.api.exchange_api.requests.get")
   def test_rate_limit(self, mock_get: MagicMock):
-    iso_start_time = "2019-04-21T12:19:14.345Z"
+    start_time = datetime(2019, 4, 21, 12, 19, 14, 345000, tzinfo=UTC)
+    iso_start_time = "2019-04-21T12:19:14.345000Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
     pair = Pair.BTC_USD
     expected_url = (
       "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
       "granularity=60"
-    ).format(pair.value, iso_start_time, iso_expected_end)
-    expected_close = 8884.56
+    ).format("BTC-USD", iso_start_time, iso_expected_end)
+    expected_close = Decimal("8884.56")
     api = ExchangeApi()
     mock_get.side_effect = [
       StubResponse(RATE_LIMIT_EXCEEDED),
-      get_stub_response(expected_close)
+      get_stub_response(8884.56)
     ]
 
-    close = api.get_close(iso_start_time, pair)
+    close = api.get_close(start_time, pair)
 
     self.assertEqual(expected_close, close)
 
@@ -63,18 +69,19 @@ class TestExchangeApi(TestCase):
 
   @mock.patch("calculator.api.exchange_api.requests.get")
   def test_unknown_error_raises_exception(self, mock_get: MagicMock):
-    iso_start_time = "2019-04-21T12:19:14.345Z"
+    start_time = datetime(2019, 4, 21, 12, 19, 14, 345000, tzinfo=UTC)
+    iso_start_time = "2019-04-21T12:19:14.345000Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
     pair = Pair.BTC_USD
     expected_url = (
       "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
       "granularity=60"
-    ).format(pair.value, iso_start_time, iso_expected_end)
+    ).format("BTC-USD", iso_start_time, iso_expected_end)
     api = ExchangeApi()
     mock_get.return_value = StubResponse({"message": "unknown error"})
 
     with self.assertRaises(NotImplementedError) as context:
-      api.get_close(iso_start_time, pair)
+      api.get_close(start_time, pair)
     self.assertEqual("Unknown message from api: unknown error",
                      str(context.exception))
 
