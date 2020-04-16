@@ -111,13 +111,14 @@ class ProfitAndLoss:
     if asset == pair.get_base_asset():
       if Side.SELL == basis[SIDE]:
         raise ValueError(INVALID_TRADE(asset, basis, "basis"))
-      return basis[SIZE]
+      size = basis[SIZE]
     elif asset == pair.get_quote_asset():
       if Side.BUY == basis[SIDE]:
         raise ValueError(INVALID_TRADE(asset, basis, "basis"))
-      return basis[SIZE] * basis[PRICE] - basis[FEE]
+      size = basis[SIZE] * basis[PRICE] - basis[FEE]
     else:
       raise ValueError(INVALID_TRADE(asset, basis, "basis"))
+    return basis[PAIR].quantize(size)
 
   @staticmethod
   def get_proceeds_size(asset: Asset, proceeds: Series) -> Decimal:
@@ -125,13 +126,14 @@ class ProfitAndLoss:
     if asset == pair.get_base_asset():
       if Side.BUY == proceeds[SIDE]:
         raise ValueError(INVALID_TRADE(asset, proceeds, "proceeds"))
-      return proceeds[SIZE]
+      size = proceeds[SIZE]
     elif asset == pair.get_quote_asset():
       if Side.SELL == proceeds[SIDE]:
         raise ValueError(INVALID_TRADE(asset, proceeds, "proceeds"))
-      return proceeds[SIZE] * proceeds[PRICE] + proceeds[FEE]
+      size = proceeds[SIZE] * proceeds[PRICE] + proceeds[FEE]
     else:
       raise ValueError(INVALID_TRADE(asset, proceeds, "proceeds"))
+    return proceeds[PAIR].quantize(size)
 
   @staticmethod
   def validate_sizes(

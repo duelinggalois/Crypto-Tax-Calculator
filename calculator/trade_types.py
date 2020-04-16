@@ -6,6 +6,12 @@ class Side(Enum):
   SELL = "SELL"
   BUY = "BUY"
 
+  def __repr__(self):
+    return "<{}: {}>".format(self.__class__.__name__, self.value)
+
+  def __str__(self):
+    return self.value
+
 
 class Asset(Enum):
   USD = "USD"
@@ -15,6 +21,9 @@ class Asset(Enum):
   BCH = "BCH"
 
   def __repr__(self):
+    return self.value
+
+  def __str__(self):
     return self.value
 
 
@@ -34,15 +43,18 @@ class Pair(Enum):
   BCH_BTC = {"base": Asset.BCH, "quote": Asset.BTC,
              'base_increment': '0.00000001'}
 
+  quantize = lambda self, x: x.quantize(Decimal(self.value["base_increment"]),
+                                        rounding=ROUND_HALF_EVEN)
+
   def get_quote_asset(self) -> Asset:
     return self.value["quote"]
 
   def get_base_asset(self) -> Asset:
     return self.value["base"]
 
-  def quantize(self):
-    return lambda x: x.quantize(Decimal(self.value["base_increment"]),
-                                rounding=ROUND_HALF_EVEN)
-
   def __repr__(self):
     return "<Pair: {}-{}>".format(self.value["base"], self.value["quote"])
+
+  def __str__(self):
+    return "{}-{}".format(self.value["base"], self.value["quote"])
+
