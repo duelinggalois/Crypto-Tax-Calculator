@@ -5,11 +5,12 @@ from unittest import TestCase
 import pytz
 from datetime import datetime
 
-from calculator.format import SIZE, PRICE, FEE, ADJUSTED_VALUE, ID, WASH_P_L_IDS
+from calculator.format import SIZE, PRICE, FEE, ADJUSTED_VALUE, ID, \
+  WASH_P_L_IDS, TOTAL
 from calculator.trade_types import Pair, Asset, Side
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, \
   INVALID_MATCH, INVALID_TRADE
-from test_helpers import get_trade_for_pair, \
+from test.test_helpers import get_trade_for_pair, \
   time_incrementer
 
 
@@ -141,7 +142,6 @@ class TestProfitAndLoss(TestCase):
 
     self.assert_proceeds_raises_exception(Asset.BTC, basis, proceeds)
 
-  @unittest.skip("TODO: issue #8 see validate_sizes, currently printing trade")
   def test_mismatched_size_raises_exception(self):
     basis = get_mock_trade(
       Pair.BTC_USD, Side.BUY, Decimal("1"), Decimal("7000"),
@@ -156,7 +156,6 @@ class TestProfitAndLoss(TestCase):
       Asset.BTC, basis, basis[SIZE], proceeds, proceeds[SIZE]
     )
 
-  @unittest.skip("TODO: issue #8 see validate_sizes, currently printing trade")
   def test_mismatched_size_for_mismatched_basis_throws_exception(self):
     # basis size in btc is 200 * 0.005 - 0.01 = 0.99
     basis = get_mock_trade(
@@ -174,7 +173,6 @@ class TestProfitAndLoss(TestCase):
       proceeds[SIZE]
     )
 
-  @unittest.skip("TODO: issue #8 see validate_sizes, currently printing trade")
   def test_mismatched_size_for_mismatched_proceeds_throws_exception(self):
     basis = get_mock_trade(
       Pair.BTC_USD, Side.BUY, Decimal("1"), Decimal("7000"),
@@ -210,8 +208,8 @@ class TestProfitAndLoss(TestCase):
     self.assertEqual(p_l.profit_and_loss, expected_loss)
     # Wash loss makes final p and l zero
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
-    # adjusted 5050 + 1130
-    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("6180"))
+    # adjusted - 5050 - 1130
+    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("-6180"))
 
   def test_small_wash_trade(self):
     basis = get_mock_trade(
@@ -230,7 +228,7 @@ class TestProfitAndLoss(TestCase):
     # Wash loss -1130 / 4 = -282.5
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("-282.5"))
     # adjust 5000 * 3/4 + 37.5 + 1130 * 3/4 = -847.50
-    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("4635"))
+    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("-4635"))
 
   def test_larger_trade_returns_rem_fraction(self):
     basis = get_mock_trade(
@@ -248,8 +246,10 @@ class TestProfitAndLoss(TestCase):
     p_l.wash_loss(wash)
     # Wash size exceeds loss size
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
-    # adjust (1.2 * 5000 + 60) + 1130 = 7190
-    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("7190"))
+    # total - (1.2 * 5000 + 60) = -6060
+    self.assertEqual(wash[TOTAL], Decimal("-6060"))
+    # - 6060 - 1130 = -7190
+    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("-7190"))
 
   def test_multiple_washes(self):
     basis = get_mock_trade(
@@ -277,10 +277,10 @@ class TestProfitAndLoss(TestCase):
     p_l.wash_loss(wash_three)
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
     # Wash loss (0.25 * 5000) + (0.25 * 1130) = 1532.5
-    self.assertEqual(wash_one[ADJUSTED_VALUE], Decimal("1532.5"))
+    self.assertEqual(wash_one[ADJUSTED_VALUE], Decimal("-1532.5"))
     # Wash loss (0.5 * 5000) + (0.5 * 1130) = 3065
-    self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("3065"))
-    self.assertEqual(wash_three[ADJUSTED_VALUE], Decimal("1532.5"))
+    self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("-3065"))
+    self.assertEqual(wash_three[ADJUSTED_VALUE], Decimal("-1532.5"))
 
   def test_mismatched_pair(self):
     basis = get_mock_trade(
@@ -316,7 +316,8 @@ class TestProfitAndLoss(TestCase):
     p_l = ProfitAndLoss(Asset.BTC, basis, proceeds)
     p_l.wash_loss(eth_btc_wash)
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
-    # adjust (1.2 * 5000) + 1130 = 7130 (5000 is default btc per usd)
+    # adjust -(1.2 * 5000) - 1130 = -7130 (5000 test helper default btc per usd)
+    # context is in respect to ETH not BTC so loss value is swapped to positive.
     self.assertEqual(eth_btc_wash[ADJUSTED_VALUE], Decimal("7130"))
 
   def test_id_matching_for_wash_trades(self):
@@ -373,7 +374,7 @@ class TestProfitAndLoss(TestCase):
     p_l.wash_loss(wash_one)
     p_l.wash_loss(wash_two)
     # adj 2500 + (0.25 * 1130) =
-    self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("2782.5"))
+    self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("-2782.5"))
 
   def assert_basis_raises_exception(self, asset, basis, proceeds):
     with self.assertRaises(ValueError) as context:

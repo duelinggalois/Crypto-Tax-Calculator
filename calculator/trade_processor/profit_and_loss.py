@@ -4,7 +4,8 @@ from typing import List
 
 from pandas import Series
 from calculator.format import ID, PAIR, TOTAL_IN_USD, SIZE, \
-  USD_PER_BTC, SIDE, PRICE, FEE, ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
+  USD_PER_BTC, SIDE, PRICE, FEE, ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE, \
+  TOTAL
 from calculator.trade_types import Pair, Asset, Side
 from calculator.auto_id_incrementer import AutoIdIncrementer
 
@@ -52,7 +53,7 @@ class ProfitAndLoss:
     self.proceeds_id: int = proceeds[ID]
     self.proceeds_pair: Pair = proceeds[PAIR]
     self.proceeds: Decimal = self.get_value(proceeds)
-    self.profit_and_loss: Decimal = self.proceeds - self.basis
+    self.profit_and_loss: Decimal = self.proceeds + self.basis
     self.taxed_profit_and_loss: Decimal = self.profit_and_loss
 
   def get_series(self) -> Series:
@@ -86,8 +87,17 @@ class ProfitAndLoss:
       adj_size = size
       adj_loss = self.taxed_profit_and_loss * adj_size / self.unwashed_size
 
-    self.taxed_profit_and_loss -= adj_loss  # loss goes up less tax write off
-    wash_trade[ADJUSTED_VALUE] -= adj_loss  # basis goes up less future tax
+    self.taxed_profit_and_loss -= adj_loss
+    if self.asset == wash_trade[PAIR].get_base_asset():
+      wash_trade[ADJUSTED_VALUE] += adj_loss
+    else:
+      # BTC is the asset and quote asset. for example is in terms of LTC-BTC and
+      # total, total in usd and adjusted value will all be in context of LTC not
+      # BTC. It makes the most since to keep it that way and adjust the opposite
+      # way. Adjusting all of those values is likely more confusing then keeping
+      # them in the same context and making sure that handling of this case is
+      # consistent.
+      wash_trade[ADJUSTED_VALUE] -= adj_loss
     wash_trade[ADJUSTED_SIZE] += adj_size
     self.unwashed_size -= adj_size
 
@@ -98,12 +108,14 @@ class ProfitAndLoss:
   def is_loss(self) -> bool:
     return self.taxed_profit_and_loss < 0
 
-  @staticmethod
-  def get_value(trade: Series):
-    return (
-      trade[TOTAL_IN_USD] if trade[ADJUSTED_VALUE].is_nan()
-      else trade[ADJUSTED_VALUE]
-    )
+  def get_value(self, trade: Series):
+    if self.asset == trade[PAIR].get_base_asset():
+      return trade[TOTAL_IN_USD]
+    else:
+      # if Asset is BTC and pair is LTC-BTC total in usd will be in the context
+      # of +/- usd with respect to LTC not BTC. This swaps the value in order
+      # to respect the value of usd in respect to BTC.
+      return - trade[TOTAL_IN_USD]
 
   @staticmethod
   def get_basis_size(asset: Asset, basis: Series) -> Decimal:
@@ -115,10 +127,10 @@ class ProfitAndLoss:
     elif asset == pair.get_quote_asset():
       if Side.BUY == basis[SIDE]:
         raise ValueError(INVALID_TRADE(asset, basis, "basis"))
-      size = basis[SIZE] * basis[PRICE] - basis[FEE]
+      size = basis[TOTAL]
     else:
       raise ValueError(INVALID_TRADE(asset, basis, "basis"))
-    return basis[PAIR].quantize(size)
+    return size
 
   @staticmethod
   def get_proceeds_size(asset: Asset, proceeds: Series) -> Decimal:
@@ -130,24 +142,21 @@ class ProfitAndLoss:
     elif asset == pair.get_quote_asset():
       if Side.SELL == proceeds[SIDE]:
         raise ValueError(INVALID_TRADE(asset, proceeds, "proceeds"))
-      size = proceeds[SIZE] * proceeds[PRICE] + proceeds[FEE]
+      # proceeds are in context of quote not base asset, thus we are referencing
+      # this is a base asset basis trade and the total will be negative.
+      size = - proceeds[TOTAL]
     else:
       raise ValueError(INVALID_TRADE(asset, proceeds, "proceeds"))
-    return proceeds[PAIR].quantize(size)
+    return size
 
   @staticmethod
   def validate_sizes(
       basis: Series, b_size: Decimal, proceeds: Series, p_size: Decimal
   ) -> None:
     if p_size != b_size:
-      # TODO (issue #8) Thees off by rounding error issues needs to be flushed
-      #  out for BTC.
-      # raise ValueError(
-      #   INVALID_MATCH(basis, b_size, proceeds, p_size)
-      # )
-      print("Mismatched sizes\n\nBasis:\n{}\n\nProceeds:\n{}".format(
-        basis, proceeds
-      ))
+      raise ValueError(
+        INVALID_MATCH(basis, b_size, proceeds, p_size)
+      )
 
   def __repr__(self):
     return pprint.pformat(self.__dict__)

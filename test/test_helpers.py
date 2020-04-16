@@ -29,7 +29,7 @@ def get_trade(
     trade_id: int = 3132964,
     product: Pair = Pair.ETH_BTC,
     side: Side = Side.SELL,
-    created_at: datetime = datetime(2018, 1, 2, 1, 18, 26, 406, pytz.UTC), # "2018-01-02T01:18:26.406Z"
+    created_at: datetime = datetime(2018, 1, 2, 1, 18, 26, 406, pytz.UTC),
     size: Decimal = Decimal("0.00768977"),
     price: Decimal = Decimal("0.0575"),
     fee: Decimal = Decimal("0"),
@@ -54,8 +54,13 @@ def get_trade(
   :return Series representing the trade
 
   """
+  # Values are assumed to be passed in as positive, this is a sanity check
+  if price < 0 or size < 0 or fee < 0 or (
+    not usd_per_btc.is_nan() and usd_per_btc < 0
+  ):
+    raise ValueError("Passed negative value to helper method.")
   quote: Asset = product.get_quote_asset()
-  total = size * price + fee if Side.BUY == side else size * price - fee
+  total = - price * size - fee if Side.BUY == side else price * size -fee
   if quote == Asset.USD:
     usd_per_btc = Decimal("nan")
     value = total

@@ -6,8 +6,8 @@ from typing import Deque, Tuple
 from datetime import datetime
 from pandas import Series
 
-from calculator.format import SIDE, PAIR, SIZE, PRICE, FEE, TOTAL, TIME,\
-  TOTAL_IN_USD, ADJUSTED_VALUE
+from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME,\
+  TOTAL_IN_USD, ADJUSTED_VALUE, ID
 from calculator.trade_types import Asset, Side
 from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
 
@@ -83,7 +83,11 @@ class TradeProcessor:
     if trade[PAIR].get_base_asset() == self.asset:
       trade_size = trade[SIZE]
     else:
-      trade_size = trade[SIZE] * trade[PRICE] + trade[FEE]
+      # total will be negative, proceeds trade with asset as quote pair is in
+      # in the context of the asset in the base and thus proceeds are basis
+      # trades for the base asset context, but proceeds context for the quote.
+      trade_size = - trade[TOTAL]
+
     return trade_size
 
   def determine_basis_size(self, basis_trade: Series) -> Decimal:
@@ -91,8 +95,7 @@ class TradeProcessor:
     if basis_trade[PAIR].get_base_asset() == self.asset:
       basis_size = basis_trade[SIZE]
     else:
-      basis_size = basis_trade[SIZE] * basis_trade[PRICE] \
-                   - basis_trade[FEE]
+      basis_size = basis_trade[TOTAL]
     return basis_size
 
   def handle_wash_trade(self, size, trade):

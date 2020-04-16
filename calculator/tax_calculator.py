@@ -41,15 +41,20 @@ def calculate_all(path, cb_name, trade_name):
       "{}{}".format(path, trade_name),
       converters=CONVERTERS
     )
-    add_usd_per(trades_df)
+    print("\nGrabbing usd per btc for cost basis trades")
     add_usd_per(cost_basis_df)
+    print("\nGrabbing usd per btc for fill trades")
+    add_usd_per(trades_df)
+
     trades_df.to_csv(
       "{}{}_with_usd_per.csv".format(path, trade_name[:-4]),
-      index=False
+      index=False,
+      date_format=TIME_STRING_FORMAT
     )
     cost_basis_df.to_csv(
       "{}{}_with_usd_per.csv".format(path, cb_name[:-4]),
-      index=False
+      index=False,
+      date_format=TIME_STRING_FORMAT
     )
   cost_basis_df[ADJUSTED_VALUE] = cost_basis_df[TOTAL_IN_USD]
   cost_basis_df[ADJUSTED_SIZE] = Decimal(0)
@@ -120,26 +125,49 @@ def calculate_tax_profit_and_loss(asset, basis_df, asset_df: pd.DataFrame):
   basis_queue = deque(j for i, j in basis_df.iterrows())
   processor = TradeProcessor(asset, basis_queue)
   trade_count = len(asset_df)
-  chunks_size = trade_count // 10 + 1
+  progress_len = 20
+  chunk_size = trade_count // progress_len
   chunk = 0
   count = 0
-  print("Processing {} Trades".format(trade_count))
+  print("\nProcessing {} trades\n".format(trade_count))
+  start = time.time()
   for j, trade in asset_df.iterrows():
-    if count % chunks_size == 0:
-      print("[{}{}]".format("*" * chunk, " " * chunk), end="\r")
+    print("[{}{}]".format("*" * chunk, " " * (progress_len - chunk)), end="\r")
+    if count % chunk_size == 0 and count != 0:
+      chunk += 1
     processor.handle_trade(trade)
     count += 1
+  end = time.time()
+  lapsed = end-start
+  print("\n\nProcessed trades in {} seconds {} per trade\n".format(
+        lapsed, lapsed/trade_count))
   return processor
 
 
 def add_usd_per(df):
-  usd_not_base_mask = df[PAIR].str[-3:] != "USD"
+  usd_not_base_mask = df[PAIR].apply(
+    lambda x : x.get_quote_asset() != Asset.USD)
   prices = []
+  trade_count = usd_not_base_mask.value_counts()[True]
+  progress_len = 20
+  chunk_size = trade_count // progress_len
+  chunk = 0
+  count = 0
+  print("\nQuerying exchange API for {} trades\n".format(trade_count))
+  start = time.time()
   for i, j in df.loc[usd_not_base_mask].iterrows():
+    print("[{}{}]".format("*" * chunk, " " * (progress_len - chunk)), end="\r")
+    if count % chunk_size == 0 and count != 0:
+      chunk += 1
     close = exchange_api.get_close(j[TIME], Pair.BTC_USD)
     prices.append(close)
     # API is rate limited at 3 requests per second
     time.sleep(.4)
+    count += 1
+  end = time.time()
+  lapsed = end - start
+  print("\n\nQueried trades in {} seconds {} per trade".format(
+    lapsed, lapsed / trade_count))
   df.loc[usd_not_base_mask, USD_PER_BTC] = prices
   df.loc[usd_not_base_mask, TOTAL_IN_USD] = df.loc[
     usd_not_base_mask, TOTAL] * df.loc[
