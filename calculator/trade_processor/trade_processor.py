@@ -107,12 +107,12 @@ class TradeProcessor:
   def handle_wash_before_loss(self, entry, p_l, size):
     basis_trade = self.wash_before_loss_check.popleft()
     if (entry.proceeds[TIME] - basis_trade[TIME]).days < 30:
-      p_l_size = p_l.unwashed_size
-      if p_l_size > size:
-        # loss will not be matched completely absorbed
+      wash_size = basis_trade[SIZE]
+      if wash_size > size:
+        # Wash will not be completely absorbed by loss
         self.wash_before_loss_check.appendleft(basis_trade)
       entry.profit_and_loss.wash_loss(basis_trade)
-      size -= p_l_size
+      size -= wash_size
     return size
 
   def handle_wash_trade_after_loss(self, size, trade):

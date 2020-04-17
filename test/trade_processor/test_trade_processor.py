@@ -554,7 +554,7 @@ class TestTradeProcessor(TestCase):
     # basis should be adjusted from -6969 to -6969 - 1150 = -8119
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-8119"))
 
-  def test_wash_trades_smaller_size_than_loss(self):
+  def test_wash_trades_smaller_size_than_loss_after(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
                                  Decimal("80"))
     sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
@@ -584,7 +584,37 @@ class TestTradeProcessor(TestCase):
     # adjusted 4242 + (1150 * 0.6) = 4932
     self.assertEqual(basis_two[ADJUSTED_VALUE], Decimal("-4932"))
 
-  def test_wash_trade_larger_size_than_trade(self):
+  def test_wash_trades_smaller_size_than_loss_before(self):
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    wash_one = self.get_btc_usd_trade(Side.BUY, Decimal("0.2"), Decimal("6900"),
+                                      Decimal("13.8"))
+    wash_two = self.get_btc_usd_trade(Side.BUY, Decimal("0.6"), Decimal("7000"),
+                                      Decimal("42"), days=0, hours=1)
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"), days=29, hours=22)
+
+    b_q, p_l = ProcessorBuilder(buy).process_trades(wash_one, wash_two, sell)\
+      .build()
+    self.assertEqual(len(b_q), 2)
+    self.assertEqual(len(p_l), 1)
+    basis_one = b_q.popleft()
+    basis_two = b_q.popleft()
+    entry_one = p_l.popleft()
+
+    # Loss adjusted proportionally -1150 * (1 - 0.2 - 0.6) = -230
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"), Decimal("-230"))
+    # total is 0.2 * 6900 + 13.8 = 1393.8
+    self.assertEqual(basis_one[TOTAL_IN_USD], Decimal("-1393.8"))
+    # adjusted 1393.8 + (1150 * 0.2) = 1623.8
+    self.assertEqual(basis_one[ADJUSTED_VALUE], Decimal("-1623.8"))
+    # total is 0.6 * 7000 + 42 = 4242
+    self.assertEqual(basis_two[TOTAL_IN_USD], Decimal("-4242"))
+    # adjusted 4242 + (1150 * 0.6) = 4932
+    self.assertEqual(basis_two[ADJUSTED_VALUE], Decimal("-4932"))
+
+  def test_wash_trade_larger_size_than_trade_after(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
                                  Decimal("80"))
     sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
@@ -593,6 +623,28 @@ class TestTradeProcessor(TestCase):
                                   Decimal("82.8"), days=29, hours=23)
 
     b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
+    basis = b_q.popleft()
+    entry_one = p_l.popleft()
+
+    # Loss removed
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"), Decimal("0"))
+    # total is 1.2 * 6900 + 82.8 = 8362.8
+    # basis should have negative total
+    self.assertEqual(basis[TOTAL_IN_USD], Decimal("-8362.8"))
+    # adjusted 8362.8 + 1150 = = 9512.8
+    # basis should have negative total
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-9512.8"))
+
+  def test_wash_trade_larger_size_than_trade_before(self):
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    wash = self.get_btc_usd_trade(Side.BUY, Decimal("1.2"), Decimal("6900"),
+                                  Decimal("82.8"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"), days=29, hours=23)
+
+    b_q, p_l = ProcessorBuilder(buy).process_trades(wash, sell).build()
     basis = b_q.popleft()
     entry_one = p_l.popleft()
 
