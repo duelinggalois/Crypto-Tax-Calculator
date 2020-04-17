@@ -9,7 +9,7 @@ from calculator.api.exchange_api import ExchangeApi
 from calculator.format import (
   PAIR, TIME, SIDE, TOTAL, TOTAL_IN_USD, USD_PER_BTC, ADJUSTED_VALUE,
   WASH_P_L_IDS, ADJUSTED_SIZE, TIME_STRING_FORMAT)
-from calculator.converters import CONVERTERS
+from calculator.converters import CONVERTERS, USD_CONVERTER
 from calculator.trade_types import Asset, Side, Pair
 from calculator.trade_processor.trade_processor import TradeProcessor
 
@@ -28,11 +28,7 @@ def calculate_all(path, cb_name, trade_name):
       converters=CONVERTERS
     )
   except FileNotFoundError as e:
-    print(
-      "STEP 1: Finding BTC-USD for non USD Quote trades. API limits 3 requests"
-      " per second so this will take over one minute per 90 non USD quote"
-      " trades."
-    )
+    # check for columns in case they are named differently but has usd per btc
     cost_basis_df = pd.read_csv(
       "{}{}".format(path, cb_name),
       converters=CONVERTERS
@@ -40,6 +36,11 @@ def calculate_all(path, cb_name, trade_name):
     trades_df = pd.read_csv(
       "{}{}".format(path, trade_name),
       converters=CONVERTERS
+    )
+    print(
+      "STEP 1: Finding BTC-USD for non USD Quote trades. API limits 3 requests"
+      " per second so this will take over one minute per 90 non USD quote"
+      " trades."
     )
     print("\nGrabbing usd per btc for cost basis trades")
     add_usd_per(cost_basis_df)
@@ -175,3 +176,4 @@ def add_usd_per(df):
   ]
   df.loc[~usd_not_base_mask, TOTAL_IN_USD] = df.loc[
     ~usd_not_base_mask, TOTAL]
+  df[TOTAL_IN_USD].apply(USD_ROUNDER)

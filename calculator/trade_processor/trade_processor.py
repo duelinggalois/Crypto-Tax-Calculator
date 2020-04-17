@@ -20,7 +20,8 @@ class TradeProcessor:
 
     self.asset: Asset = asset
     self.basis_queue: Deque[Series, ...] = basis_queue
-    self.wash_check_queue: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
+    self.wash_before_loss_check: Deque[Series, ...] = basis_queue.copy()
+    self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
     self.profit_loss: Deque[Entry, ...] = deque()
 
   def handle_trade(self, trade: Series):
@@ -65,17 +66,22 @@ class TradeProcessor:
       else:
         entry = Entry(self.asset, basis_trade, trade)
       if entry.profit_and_loss.is_loss():
-        self.wash_check_queue.append((entry.proceeds[TIME],
-                                      entry.profit_and_loss))
+        p_l = entry.profit_and_loss
+        size = p_l.size
+        while len(self.wash_before_loss_check) > 0 and size > 0:
+          size = self.handle_wash_before_loss(entry, p_l, size)
+        if p_l.unwashed_size > 0:
+          self.wash_after_loss_check.append((entry.proceeds[TIME],
+                                             entry.profit_and_loss))
 
       self.profit_loss.append(entry)
       trade_size -= basis_size
 
   def handle_basis_trade(self, trade):
     size = self.determine_basis_size(trade)
-    while len(self.wash_check_queue) > 0 and size > 0:
-      size = self.handle_wash_trade(size, trade)
-
+    while len(self.wash_after_loss_check) > 0 and size > 0:
+      size = self.handle_wash_trade_after_loss(size, trade)
+    self.wash_before_loss_check.append(trade)
     self.basis_queue.append(trade)
 
   def determine_proceeds_size(self, trade: Series) -> Decimal:
@@ -98,14 +104,25 @@ class TradeProcessor:
       basis_size = basis_trade[TOTAL]
     return basis_size
 
-  def handle_wash_trade(self, size, trade):
+  def handle_wash_before_loss(self, entry, p_l, size):
+    basis_trade = self.wash_before_loss_check.popleft()
+    if (entry.proceeds[TIME] - basis_trade[TIME]).days < 30:
+      p_l_size = p_l.unwashed_size
+      if p_l_size > size:
+        # loss will not be matched completely absorbed
+        self.wash_before_loss_check.appendleft(basis_trade)
+      entry.profit_and_loss.wash_loss(basis_trade)
+      size -= p_l_size
+    return size
+
+  def handle_wash_trade_after_loss(self, size, trade):
     # using first in first out
-    last_loss_time, profit_and_loss = self.wash_check_queue.popleft()
+    last_loss_time, profit_and_loss = self.wash_after_loss_check.popleft()
     if (trade[TIME] - last_loss_time).days < 30:
       p_l_size = profit_and_loss.unwashed_size
       if p_l_size > size:
         # loss will not be matched completely
-        self.wash_check_queue.appendleft((last_loss_time, profit_and_loss))
+        self.wash_after_loss_check.appendleft((last_loss_time, profit_and_loss))
       profit_and_loss.wash_loss(trade)
       size -= p_l_size
     return size

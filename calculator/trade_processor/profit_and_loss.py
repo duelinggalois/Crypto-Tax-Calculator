@@ -1,8 +1,10 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_UP
 import pprint
 from typing import List
 
 from pandas import Series
+
+from calculator.converters import USD_CONVERTER, USD_ROUNDER
 from calculator.format import ID, PAIR, TOTAL_IN_USD, SIZE, \
   USD_PER_BTC, SIDE, PRICE, FEE, ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE, \
   TOTAL
@@ -74,7 +76,7 @@ class ProfitAndLoss:
       }
     )
 
-  def wash_loss(self, wash_trade: Series):
+  def wash_loss(self, wash_trade: Series,):
     self.validate_wash()
     self.wash_loss_basis_ids.append(wash_trade[ID])
     wash_trade[WASH_P_L_IDS].append(self.id)
@@ -85,7 +87,8 @@ class ProfitAndLoss:
       adj_loss = self.taxed_profit_and_loss
     else:
       adj_size = size
-      adj_loss = self.taxed_profit_and_loss * adj_size / self.unwashed_size
+      adj_loss = USD_ROUNDER(self.taxed_profit_and_loss * adj_size /
+                               self.unwashed_size)
 
     self.taxed_profit_and_loss -= adj_loss
     if self.asset == wash_trade[PAIR].get_base_asset():

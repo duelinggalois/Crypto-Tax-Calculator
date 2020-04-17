@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import requests
 
+from calculator.converters import USD_CONVERTER
 from calculator.format import TIME_STRING_FORMAT
 from calculator.trade_types import Pair
 
@@ -26,7 +27,7 @@ class ExchangeApi:
       return self.__handle_error(data, date_time, pair)
 
     # last response comes first and close is the 4th index
-    return Decimal(data[0][4]).quantize(Decimal("0.01"))
+    return USD_CONVERTER(data[0][4])
 
   def __handle_error(self, data: dict, iso_time: datetime, pair: Pair) -> float:
     # Issue could be a rate limited by api

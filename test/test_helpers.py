@@ -6,6 +6,7 @@ import pytz
 from pandas import Series
 
 from calculator.auto_id_incrementer import AutoIdIncrementer
+from calculator.converters import USD_CONVERTER, USD_ROUNDER
 from calculator.format import ID, PAIR, SIDE, TIME, SIZE, \
   SIZE_UNIT, PRICE, FEE, P_F_T_UNIT, TOTAL, USD_PER_BTC, TOTAL_IN_USD, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
@@ -65,7 +66,7 @@ def get_trade(
     usd_per_btc = Decimal("nan")
     value = total
   elif quote == Asset.BTC:
-    value = (total * usd_per_btc).quantize(Decimal("0.01"))
+    value = USD_ROUNDER(total * usd_per_btc)
   else:
     raise ValueError("Pair not supported: " + str(product))
 
@@ -89,13 +90,24 @@ def get_trade(
 
 
 class AutoTimeIncrementer:
-  dt = datetime(2019, 1, 1, 12, 30, 0, 0, pytz.UTC)
+  start = datetime(2019, 1, 1, 12, 30, 0, 0, pytz.UTC)
+  dt = start
 
   @classmethod
-  def get_time_and_increment(cls, td: timedelta = timedelta(3)) -> datetime:
+  def get_time_and_increment(cls, days: int = 3) -> datetime:
+    td = timedelta(days)
     time = cls.dt
     cls.dt += td
     return time
+
+  @classmethod
+  def increment_and_get_time(cls, days=3, hours=0) -> datetime:
+    cls.dt += timedelta(days=days, hours=hours)
+    return cls.dt
+
+  @classmethod
+  def reset(cls):
+    cls.dt = cls.start
 
 
 class Exchange:
@@ -110,6 +122,6 @@ class Exchange:
     cls.usd_per_btc = Decimal(usd_per_btc)
 
 
-id_incrementer = AutoIdIncrementer()
-time_incrementer = AutoTimeIncrementer()
+id_incrementer: AutoIdIncrementer = AutoIdIncrementer()
+time_incrementer: AutoTimeIncrementer = AutoTimeIncrementer()
 exchange = Exchange()

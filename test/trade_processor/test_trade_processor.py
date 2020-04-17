@@ -3,9 +3,6 @@ from collections import deque
 from typing import Tuple, Deque
 from unittest import TestCase
 
-from datetime import datetime, timedelta
-
-import pytz
 from pandas import Series
 from pandas.testing import assert_series_equal
 
@@ -17,7 +14,7 @@ from calculator.trade_types import Pair, Asset, Side
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, Entry
 from calculator.trade_processor.trade_processor import TradeProcessor
 from test import test_helpers
-from test.test_helpers import get_trade_for_pair
+from test.test_helpers import get_trade_for_pair, time_incrementer
 
 FIXED_COL = [
   ID,
@@ -34,37 +31,22 @@ VARIABLE_COL = [SIZE, TOTAL, FEE]
 class TestTradeProcessor(TestCase):
 
   def setUp(self) -> None:
-    # times taken from examples seen in past trades
-    self.time_one = datetime(2017, 12, 8, 8, 16, 33, 34, pytz.UTC)
-    self.time_two = datetime(2017, 12, 9, 8, 16, 33, 34, pytz.UTC)
-    self.time_three = datetime(2018, 1, 9, 18, 36, 15, 826, pytz.UTC)
-    self.times: Tuple[datetime, ...] = (
-      datetime(2020, 1, 8),
-      datetime(2020, 1, 9)
-    )
-    self.id_counter = 0
     # total 15000 * 0.04 + 6 = 606
-    self.basis_buy_one = self.get_btc_usd_trade(
-      Side.BUY, self.time_one, Decimal("0.04"),
-      Decimal("15000.00"), Decimal("6")
-    )
+    self.basis_buy_one = self.get_btc_usd_trade(Side.BUY, Decimal("0.04"),
+                                                Decimal("15000.00"),
+                                                Decimal("6"))
     # total 15050 * 0.02 + 3.01 = 304.01
-    self.basis_buy_two = self.get_btc_usd_trade(
-      Side.BUY, self.time_two, Decimal("0.02"),
-      Decimal("15050.00"), Decimal("3.01")
-    )
+    self.basis_buy_two = self.get_btc_usd_trade(Side.BUY, Decimal("0.02"),
+                                                Decimal("15050.00"),
+                                                Decimal("3.01"))
     test_helpers.exchange.set_btc_per_usd("5000")
 
   def test_buy_added_to_basis_queue(self):
-    basis_buy = self.get_btc_usd_trade(
-      Side.BUY, self.time_one, Decimal("0.01"),
-      Decimal("16698.16"), Decimal("0.0")
-    )
+    basis_buy = self.get_btc_usd_trade(Side.BUY, Decimal("0.01"),
+                                       Decimal("16698.16"), Decimal("0.0"))
 
-    trade = self.get_btc_usd_trade(
-      Side.BUY, self.time_two, Decimal("0.011"),
-      Decimal("14722.22"), Decimal("0.0")
-    )
+    trade = self.get_btc_usd_trade(Side.BUY, Decimal("0.011"),
+                                   Decimal("14722.22"), Decimal("0.0"))
 
     b_q, p_l = ProcessorBuilder(basis_buy).process_trades(trade).build()
 
@@ -78,10 +60,8 @@ class TestTradeProcessor(TestCase):
       "trade should have been added to basis_queue", check_exact=True)
 
   def test_sell_removes_buy_from_basis_queue(self):
-    trade = self.get_btc_usd_trade(
-      Side.SELL, self.time_three, Decimal("0.04"),
-      Decimal("16000.00"), Decimal("0.0")
-    )
+    trade = self.get_btc_usd_trade(Side.SELL, Decimal("0.04"),
+                                   Decimal("16000.00"), Decimal("0.0"))
 
     b_q, p_l = ProcessorBuilder(self.basis_buy_one, self.basis_buy_two)\
       .process_trades(trade).build()
@@ -109,10 +89,8 @@ class TestTradeProcessor(TestCase):
     )
 
   def test_smaller_sell_in_p_l_and_basis_queue(self):
-    trade = self.get_btc_usd_trade(
-      Side.SELL, self.time_three, Decimal("0.01"),
-      Decimal("16000.00"), Decimal("0.0")
-    )
+    trade = self.get_btc_usd_trade(Side.SELL, Decimal("0.01"),
+                                   Decimal("16000.00"), Decimal("0.0"))
 
     b_q, p_l = ProcessorBuilder(self.basis_buy_one, self.basis_buy_two)\
       .process_trades(trade).build()
@@ -144,10 +122,8 @@ class TestTradeProcessor(TestCase):
     )
 
   def test_trade_larger_than_basis(self):
-    trade = self.get_btc_usd_trade(
-      Side.SELL, self.time_three, Decimal("0.05"),
-      Decimal("16000.00"), Decimal("8")
-    )
+    trade = self.get_btc_usd_trade(Side.SELL, Decimal("0.05"),
+                                   Decimal("16000.00"), Decimal("8"))
     b_q, p_l = ProcessorBuilder(self.basis_buy_one, self.basis_buy_two)\
       .process_trades(trade).build()
 
@@ -186,15 +162,13 @@ class TestTradeProcessor(TestCase):
     )
 
   def test_mismatched_basis_trade(self):
-    ltc_btc_sell = get_trade_for_pair(
-      Pair.LTC_BTC, Side.SELL, self.time_one, Decimal("100"),
+    ltc_btc_sell = self.get_trade(
+      Pair.LTC_BTC, Side.SELL, Decimal("100"),
       Decimal("0.01"), Decimal("0.01")
     )
     # total in usd 0.99 * 4000 - 39.6 = 3920.4
-    btc_usd_sell = self.get_btc_usd_trade(
-      Side.SELL, self.time_two, Decimal("0.99"), Decimal("4000"),
-      Decimal("39.6")
-    )
+    btc_usd_sell = self.get_btc_usd_trade(Side.SELL, Decimal("0.99"),
+                                          Decimal("4000"), Decimal("39.6"))
 
     b_q, p_l = ProcessorBuilder(ltc_btc_sell).process_trades(btc_usd_sell)\
       .build()
@@ -216,19 +190,16 @@ class TestTradeProcessor(TestCase):
     # set exchange rate closer to test conditions
     test_helpers.exchange.set_btc_per_usd("9000")
     # size 1
-    ltc_btc_sell = get_trade_for_pair(
-      Pair.LTC_BTC, Side.SELL, self.time_one, Decimal("100"),
+    ltc_btc_sell = self.get_trade(
+      Pair.LTC_BTC, Side.SELL, Decimal("100"),
       Decimal("0.01"), Decimal("0.0")
     )
     # size 1
-    bch_btc_sell = get_trade_for_pair(
-      Pair.BCH_BTC, Side.SELL, self.time_three, Decimal("21"),
-      Decimal("0.05"), Decimal("0.05")
-    )
+    bch_btc_sell = self.get_trade(
+      Pair.BCH_BTC, Side.SELL, Decimal("21"), Decimal("0.05"), Decimal("0.05"))
     # size 1.25
     btc_usd_sell = self.get_btc_usd_trade(
-      Side.SELL, self.time_two, Decimal("1.25"), Decimal("10000"),
-      Decimal("100"))
+      Side.SELL, Decimal("1.25"), Decimal("10000"), Decimal("100"))
 
     b_q, p_l = ProcessorBuilder(ltc_btc_sell, bch_btc_sell) \
       .process_trades(btc_usd_sell).build()
@@ -266,14 +237,13 @@ class TestTradeProcessor(TestCase):
   def test_mismatched_basis_trade_smaller_proceeds(self):
     # set exchange rate closer to test conditions
     test_helpers.exchange.set_btc_per_usd("11000")
-    ltc_btc_sell = get_trade_for_pair(
-      Pair.LTC_BTC, Side.SELL, self.time_one, Decimal("100"),
+    ltc_btc_sell = self.get_trade(
+      Pair.LTC_BTC, Side.SELL, Decimal("100"),
       Decimal("0.01"), Decimal("0.0")
     )
     # 1 BTC in .75 BTC out, .75 * 10000 - 100 = 7400 proceeds
-    btc_usd_sell = self.get_btc_usd_trade(
-      Side.SELL, self.time_two, Decimal("0.75"), Decimal("10000"),
-      Decimal("100"))
+    btc_usd_sell = self.get_btc_usd_trade(Side.SELL, Decimal("0.75"),
+                                          Decimal("10000"), Decimal("100"))
 
     b_q, p_l = ProcessorBuilder(ltc_btc_sell).process_trades(btc_usd_sell)\
       .build()
@@ -294,12 +264,11 @@ class TestTradeProcessor(TestCase):
   def test_mismatched_proceeds_trade(self):
     # set exchange rate closer to test conditions
     test_helpers.exchange.set_btc_per_usd("11000")
-    btc_usd_buy = self.get_btc_usd_trade(
-      Side.BUY, self.time_one, Decimal("0.5"), Decimal("10000"), Decimal("50")
-    )
+    btc_usd_buy = self.get_btc_usd_trade(Side.BUY, Decimal("0.5"),
+                                         Decimal("10000"), Decimal("50"))
     # .5 BTC in .5 BTC out - 0.005 fee => 0.495 BTC / .1 price = 4.95 ETH
-    eth_btc_buy = get_trade_for_pair(
-      Pair.ETH_BTC, Side.BUY, self.time_two, Decimal("4.95"), Decimal("0.1"),
+    eth_btc_buy = self.get_trade(
+      Pair.ETH_BTC, Side.BUY, Decimal("4.95"), Decimal("0.1"),
       Decimal("0.005")
     )
 
@@ -317,17 +286,14 @@ class TestTradeProcessor(TestCase):
   def test_mismatched_proceeds_trade_small_basis(self):
     # set exchange rate closer to test conditions
     test_helpers.exchange.set_btc_per_usd("10500")
-    btc_usd_buy_one = self.get_btc_usd_trade(
-      Side.BUY, self.time_one, Decimal("0.6"), Decimal("10000"), Decimal("60")
-    )
-    btc_usd_buy_two = self.get_btc_usd_trade(
-      Side.BUY, self.time_two, Decimal("0.2"), Decimal("11000"),
-      Decimal("22")
-    )
+    btc_usd_buy_one = self.get_btc_usd_trade(Side.BUY, Decimal("0.6"),
+                                             Decimal("10000"), Decimal("60"))
+    btc_usd_buy_two = self.get_btc_usd_trade(Side.BUY, Decimal("0.2"),
+                                             Decimal("11000"), Decimal("22"))
     # .6 & .2 BTC in .8 BTC out 0.008 fee =>
     # 0.792 BTC / .1 price = 7.92 ETH
-    eth_btc_buy = get_trade_for_pair(
-      Pair.ETH_BTC, Side.BUY, self.time_two, Decimal("7.92"), Decimal("0.1"),
+    eth_btc_buy = self.get_trade(
+      Pair.ETH_BTC, Side.BUY, Decimal("7.92"), Decimal("0.1"),
       Decimal("0.008")
     )
 
@@ -362,12 +328,11 @@ class TestTradeProcessor(TestCase):
   def test_mismatched_proceeds_trade_small_proceeds(self):
     # set exchange rate closer to test conditions
     test_helpers.exchange.set_btc_per_usd("9000")
-    btc_usd_buy = self.get_btc_usd_trade(
-      Side.BUY, self.time_one, Decimal("0.5"), Decimal("10000"), Decimal("50")
-    )
+    btc_usd_buy = self.get_btc_usd_trade(Side.BUY, Decimal("0.5"),
+                                         Decimal("10000"), Decimal("50"))
     # 0.5 BTC in 0.4 BTC out 0.004 fee => 0.396 BTC / .1 price = 3.96 ETH
-    eth_btc_buy = get_trade_for_pair(
-      Pair.ETH_BTC, Side.BUY, self.time_two, Decimal("3.96"), Decimal("0.1"),
+    eth_btc_buy = self.get_trade(
+      Pair.ETH_BTC, Side.BUY, Decimal("3.96"), Decimal("0.1"),
       Decimal("0.004")
     )
 
@@ -393,12 +358,12 @@ class TestTradeProcessor(TestCase):
       entry.profit_and_loss, Decimal("0.4"), Decimal("-440"))
 
   def test_eth_asset(self):
-    eth_usd_buy = get_trade_for_pair(
-      Pair.ETH_USD, Side.BUY, self.time_one, Decimal("1"), Decimal("151"),
+    eth_usd_buy = self.get_trade(
+      Pair.ETH_USD, Side.BUY, Decimal("1"), Decimal("151"),
       Decimal("1")
     )
-    eth_usd_sell = get_trade_for_pair(
-      Pair.ETH_USD, Side.SELL, self.time_one, Decimal("1"), Decimal("161.1"),
+    eth_usd_sell = self.get_trade(
+      Pair.ETH_USD, Side.SELL, Decimal("1"), Decimal("161.1"),
       Decimal("1.1"))
 
     b_q, p_l = ProcessorBuilder(eth_usd_buy).for_asset(Asset.ETH)\
@@ -413,12 +378,12 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(entry.profit_and_loss, Decimal("1"), Decimal("8"))
 
   def test_eth_basis_mismatched_small_proceeded(self):
-    eth_btc_buy = get_trade_for_pair(
-      Pair.ETH_BTC, Side.BUY, self.time_one, Decimal("1"), Decimal("0.01"),
+    eth_btc_buy = self.get_trade(
+      Pair.ETH_BTC, Side.BUY, Decimal("1"), Decimal("0.01"),
       Decimal("0.0001")
     )
-    eth_usd_sell = get_trade_for_pair(
-      Pair.ETH_USD, Side.SELL, self.time_one, Decimal(".5"), Decimal("161.1"),
+    eth_usd_sell = self.get_trade(
+      Pair.ETH_USD, Side.SELL, Decimal(".5"), Decimal("161.1"),
       Decimal(".55"))
 
     b_q, p_l = ProcessorBuilder(eth_btc_buy).for_asset(Asset.ETH) \
@@ -445,17 +410,12 @@ class TestTradeProcessor(TestCase):
       entry.profit_and_loss, Decimal("0.5"), Decimal("54.75"))
 
   def test_eth_proceed_mismatched_small_basis(self):
-    eth_usd_buy_one = get_trade_for_pair(
-      Pair.ETH_USD, Side.BUY, self.time_one, Decimal(".6"), Decimal("150"),
-      Decimal("1.506")
-    )
-    eth_usd_buy_two = get_trade_for_pair(
-      Pair.ETH_USD, Side.BUY, self.time_one, Decimal(".8"), Decimal("155"),
-      Decimal("1.24")
-    )
-    eth_btc_sell = get_trade_for_pair(
-      Pair.ETH_BTC, Side.SELL, self.time_one, Decimal("1"), Decimal("0.008"),
-      Decimal("0.00008"))
+    eth_usd_buy_one = self.get_trade(Pair.ETH_USD, Side.BUY, Decimal(".6"),
+                                     Decimal("150"), Decimal("1.506"))
+    eth_usd_buy_two = self.get_trade(Pair.ETH_USD, Side.BUY, Decimal(".8"),
+                                     Decimal("155"), Decimal("1.24"))
+    eth_btc_sell = self.get_trade(Pair.ETH_BTC, Side.SELL, Decimal("1"),
+                                  Decimal("0.008"), Decimal("0.00008"))
 
     b_q, p_l = ProcessorBuilder(eth_usd_buy_one, eth_usd_buy_two)\
       .for_asset(Asset.ETH).process_trades(eth_btc_sell).build()
@@ -497,18 +457,16 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(
       entry_two.profit_and_loss, Decimal("0.4"), Decimal("-46.78"))
 
-  def test_wash_trade_noop_over_thirty_days(self):
+  def test_wash_trade_noop_over_thirty_days_after(self):
     """
     Test noop behavior when wash trade handling is not needed.
     """
-    over_thirty = self.times[1] + timedelta(30)
-
-    buy = self.get_btc_usd_trade(
-      Side.BUY, self.times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
-    sell = self.get_btc_usd_trade(
-      Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
-    non_wash = self.get_btc_usd_trade(
-      Side.BUY, over_thirty, Decimal("1"), Decimal("6900"), Decimal("69"))
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"))
+    non_wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("6900"),
+                                      Decimal("69"))
 
     b_q, p_l = ProcessorBuilder(buy).process_trades(sell, non_wash).build()
 
@@ -526,20 +484,46 @@ class TestTradeProcessor(TestCase):
     # basis should be adjusted to -6969
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-6969"))
 
-  def test_wash_trade_under_thirty_days(self):
+  def test_wash_trade_noop_over_thirty_days_before(self):
+    """
+    Test noop behavior when wash trade handling is not needed.
+    """
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    non_wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("6900"),
+                                      Decimal("69"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"))
+
+    b_q, p_l = ProcessorBuilder(buy).process_trades(non_wash, sell).build()
+
+    self.assertEqual(len(b_q), 1, "Non wash trade should be in the b_q")
+    self.assertEqual(len(p_l), 1, "basis and sell are matched in the p_l")
+
+    basis = b_q.popleft()
+    assert_series_equal(basis, non_wash, check_exact=True)
+
+    entry_one = p_l.popleft()
+    assert_series_equal(entry_one.basis, buy, check_exact=True)
+    assert_series_equal(entry_one.proceeds, sell, check_exact=True)
+    # Loss would be 8080 - 6930 = 1150
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"))
+    # basis should be adjusted to -6969
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-6969"))
+
+  def test_wash_trade_under_thirty_days_after(self):
     """
     If a trade is sold at a loss and then a buy is executed within 30
     days, the loss can not be realized, but the basis for the wash buy can
     have a reduced basis equal to the loss.
     """
-    under_thirty = self.times[1] + timedelta(29, hours=23)
-
-    buy = self.get_btc_usd_trade(
-      Side.BUY, self.times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
-    sell = self.get_btc_usd_trade(
-      Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
-    wash = self.get_btc_usd_trade(
-      Side.BUY, under_thirty, Decimal("1"), Decimal("6900"), Decimal("69"))
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"))
+    wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("6900"),
+                                  Decimal("69"), days=29, hours=23)
 
     b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
     basis = b_q.popleft()
@@ -551,17 +535,34 @@ class TestTradeProcessor(TestCase):
     # basis should be adjusted from -6969 to -6969 - 1150 = -8119
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-8119"))
 
-  def test_wash_trades_smaller_size_than_loss(self):
-    under_thirty = self.times[1] + timedelta(29, hours=23)
+  def test_wash_trade_under_thirty_days_before(self):
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("6900"),
+                                  Decimal("69"))
+    # loss is less than 30 days after last by back
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"), days=20, hours=23)
 
-    buy = self.get_btc_usd_trade(
-      Side.BUY, self.times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
-    sell = self.get_btc_usd_trade(
-      Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
-    wash_one = self.get_btc_usd_trade(
-      Side.BUY, under_thirty, Decimal("0.2"), Decimal("6900"), Decimal("13.8"))
-    wash_two = self.get_btc_usd_trade(
-      Side.BUY, under_thirty, Decimal("0.6"), Decimal("7000"), Decimal("42"))
+    b_q, p_l = ProcessorBuilder(buy).process_trades(wash, sell).build()
+    basis = b_q.popleft()
+    entry_one = p_l.popleft()
+
+    # Loss would be 8080 - 6930 = 1150 but adjusted to zero
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"), Decimal("0"))
+    # basis should be adjusted from -6969 to -6969 - 1150 = -8119
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-8119"))
+
+  def test_wash_trades_smaller_size_than_loss(self):
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"))
+    wash_one = self.get_btc_usd_trade(Side.BUY, Decimal("0.2"), Decimal("6900"),
+                                      Decimal("13.8"), days=29, hours=22)
+    wash_two = self.get_btc_usd_trade(Side.BUY, Decimal("0.6"), Decimal("7000"),
+                                      Decimal("42"), days=0, hours=1)
 
     b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash_one, wash_two)\
       .build()
@@ -584,14 +585,12 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(basis_two[ADJUSTED_VALUE], Decimal("-4932"))
 
   def test_wash_trade_larger_size_than_trade(self):
-    under_thirty = self.times[1] + timedelta(29, hours=23)
-
-    buy = self.get_btc_usd_trade(
-      Side.BUY, self.times[0], Decimal("1"), Decimal("8000"), Decimal("80"))
-    sell = self.get_btc_usd_trade(
-      Side.SELL, self.times[1], Decimal("1"), Decimal("7000"), Decimal("70"))
-    wash = self.get_btc_usd_trade(
-      Side.BUY, under_thirty, Decimal("1.2"), Decimal("6900"), Decimal("82.8"))
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"))
+    wash = self.get_btc_usd_trade(Side.BUY, Decimal("1.2"), Decimal("6900"),
+                                  Decimal("82.8"), days=29, hours=23)
 
     b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
     basis = b_q.popleft()
@@ -608,18 +607,14 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-9512.8"))
 
   def test_wash_trade_larger_size_washes_next_loss(self):
-    buy_time = self.times[0] - timedelta(1)
-    under_thirty = self.times[1] + timedelta(29, hours=23)
-
-    buy = self.get_btc_usd_trade(
-      Side.BUY, buy_time, Decimal("1"), Decimal("9000"),
-      Decimal("90"))
-    buy_two = self.get_btc_usd_trade(
-      Side.BUY, self.times[0], Decimal(".5"), Decimal("8000"), Decimal("40"))
-    sell = self.get_btc_usd_trade(
-      Side.SELL, self.times[1], Decimal("1.5"), Decimal("7000"), Decimal("105"))
-    wash = self.get_btc_usd_trade(
-      Side.BUY, under_thirty, Decimal("1.25"), Decimal("6900"), Decimal("86.25"))
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("9000"),
+                                 Decimal("90"))
+    buy_two = self.get_btc_usd_trade(Side.BUY, Decimal(".5"), Decimal("8000"),
+                                     Decimal("40"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1.5"), Decimal("7000"),
+                                  Decimal("105"))
+    wash = self.get_btc_usd_trade(Side.BUY, Decimal("1.25"), Decimal("6900"),
+                                  Decimal("86.25"), days=29, hours=3)
 
     b_q, p_l = ProcessorBuilder(buy, buy_two).process_trades(sell, wash).build()
     self.assertEqual(len(b_q), 1)
@@ -640,25 +635,22 @@ class TestTradeProcessor(TestCase):
     self.verify_basis(basis, "-8711.25", "-11158.75")
 
   def test_mismatch_wash(self):
-    buy_time = self.times[0] - timedelta(1)
-    under_thirty = self.times[1] + timedelta(29, hours=23)
     test_helpers.exchange.set_btc_per_usd("6000")
 
-    buy = self.get_btc_usd_trade(
-      Side.BUY, buy_time, Decimal("1"), Decimal("9000"),
-      Decimal("90"))
-    buy_two = self.get_btc_usd_trade(
-      Side.BUY, self.times[0], Decimal(".5"), Decimal("8000"), Decimal("40"))
-    sell = self.get_btc_usd_trade(
-      Side.SELL, self.times[1], Decimal("1.5"), Decimal("7000"), Decimal("105"))
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("9000"),
+                                 Decimal("90"))
+    buy_two = self.get_btc_usd_trade(Side.BUY, Decimal(".5"), Decimal("8000"),
+                                     Decimal("40"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1.5"), Decimal("7000"),
+                                  Decimal("105"))
 
     # Size .8 BTC = 4.04 * 0.2 - 0.008
-    wash = get_trade_for_pair(Pair.LTC_BTC, Side.SELL, under_thirty,
-                              Decimal("4.04"), Decimal("0.2"), Decimal("0.008"))
+    wash = self.get_trade(Pair.LTC_BTC, Side.SELL, Decimal("4.04"),
+                          Decimal("0.2"), Decimal("0.008"), days=29, hours=21)
     # Size .4 BTC = 2.02 * 0.2 - 0.004
-    wash_two = get_trade_for_pair(
-      Pair.LTC_BTC, Side.SELL, under_thirty, Decimal("2.02"), Decimal("0.2"),
-      Decimal("0.004"))
+    wash_two = self.get_trade(
+      Pair.LTC_BTC, Side.SELL, Decimal("2.02"), Decimal("0.2"),
+      Decimal("0.004"), days=0, hours=2)
 
     b_q, p_l = ProcessorBuilder(buy, buy_two)\
       .process_trades(sell, wash, wash_two)\
@@ -715,10 +707,16 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(basis[TOTAL_IN_USD], Decimal(total_in_usd))
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal(adjusted_value))
 
+  @classmethod
+  def get_btc_usd_trade(cls, side: Side, size: Decimal, price: Decimal,
+                        fee: Decimal, days=31, hours=0):
+    return cls.get_trade(Pair.BTC_USD, side, size, price, fee, days, hours)
+
   @staticmethod
-  def get_btc_usd_trade(side: Side, time: datetime, size: Decimal,
-      price: Decimal, fee: Decimal):
-    return get_trade_for_pair(Pair.BTC_USD, side, time, size, price, fee)
+  def get_trade(pair: Pair, side: Side, size: Decimal, price: Decimal,
+                fee: Decimal, days=31, hours=0):
+    time = time_incrementer.increment_and_get_time(days, hours)
+    return get_trade_for_pair(pair, side, time, size, price, fee)
 
 
 class ProcessorBuilder:
