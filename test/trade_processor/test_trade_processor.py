@@ -9,7 +9,7 @@ from pandas.testing import assert_series_equal
 from calculator.format import (
   ID, TOTAL_IN_USD, USD_PER_BTC,
   TOTAL, P_F_T_UNIT, FEE, SIZE_UNIT,
-  SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE)
+  SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE, NEXT_YEAR_VALUE)
 from calculator.trade_types import Pair, Asset, Side
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, Entry
 from calculator.trade_processor.trade_processor import TradeProcessor
@@ -31,15 +31,18 @@ VARIABLE_COL = [SIZE, TOTAL, FEE]
 class TestTradeProcessor(TestCase):
 
   def setUp(self) -> None:
-    # total 15000 * 0.04 + 6 = 606
-    self.basis_buy_one = self.get_btc_usd_trade(Side.BUY, Decimal("0.04"),
-                                                Decimal("15000.00"),
-                                                Decimal("6"))
-    # total 15050 * 0.02 + 3.01 = 304.01
-    self.basis_buy_two = self.get_btc_usd_trade(Side.BUY, Decimal("0.02"),
-                                                Decimal("15050.00"),
-                                                Decimal("3.01"))
+    # resets year time to midnight prior to the last day of 2018
+    test_helpers.time_incrementer.reset()
+    t_one = time_incrementer.get_time_and_increment(days=0, hours=1)
+    t_two = time_incrementer.get_time_and_increment(days=0, hours=1)
     test_helpers.exchange.set_btc_per_usd("5000")
+    # total 15000 * 0.04 + 6 = 606
+    self.basis_buy_one = self.get_btc_usd_trade(
+      Side.BUY, Decimal("0.04"), Decimal("15000.00"), Decimal("6"), time=t_one)
+    # total 15050 * 0.02 + 3.01 = 304.01
+    self.basis_buy_two = self.get_btc_usd_trade(
+      Side.BUY, Decimal("0.02"), Decimal("15050.00"),  Decimal("3.01"),
+      time=t_two)
 
   def test_buy_added_to_basis_queue(self):
     basis_buy = self.get_btc_usd_trade(Side.BUY, Decimal("0.01"),
@@ -726,6 +729,33 @@ class TestTradeProcessor(TestCase):
     # basis should be negative, but context is swapped due to LTC-BTC
     self.verify_basis(basis_two, "2400", "3062")
 
+  def test_tax_year_from_basis(self):
+    processor = ProcessorBuilder(self.basis_buy_one).build_processor()
+    self.assertEqual(processor.year, 2019)
+
+  def test_wash_for_next_year_has_zero_adjusted_basis(self):
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"), days=0, hours=0)
+    # sell for a loss on the last day of this tax year
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"), days=365)
+    wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("6900"),
+                                  Decimal("69"), days=29, hours=23)
+
+    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
+    basis = b_q.popleft()
+    entry_one = p_l.popleft()
+
+    # Loss would be 8080 - 6930 = 1150 but adjusted to zero
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"), Decimal("0"))
+    # total should be -6969
+    # this years adjustment should be zero
+    # basis should be adjusted from -6969 to -6969 - 1150 = -8119
+    self.assertEqual(basis[TOTAL_IN_USD], Decimal("-6969"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("0"))
+    self.assertEqual(basis[NEXT_YEAR_VALUE], Decimal("-8119"))
+
   @staticmethod
   def verify_variable_columns(trade, size_str, total_str, fee_str):
     assert_series_equal(
@@ -761,13 +791,17 @@ class TestTradeProcessor(TestCase):
 
   @classmethod
   def get_btc_usd_trade(cls, side: Side, size: Decimal, price: Decimal,
-                        fee: Decimal, days=31, hours=0):
-    return cls.get_trade(Pair.BTC_USD, side, size, price, fee, days, hours)
+                        fee: Decimal, days=31, hours=0, time=None):
+    if time is None:
+      return cls.get_trade(Pair.BTC_USD, side, size, price, fee, days, hours)
+    else:
+      return cls.get_trade(Pair.BTC_USD, side, size, price, fee, time=time)
 
   @staticmethod
   def get_trade(pair: Pair, side: Side, size: Decimal, price: Decimal,
-                fee: Decimal, days=31, hours=0):
-    time = time_incrementer.increment_and_get_time(days, hours)
+                fee: Decimal, days=31, hours=0, time=None):
+    if time is None:
+      time = time_incrementer.increment_and_get_time(days, hours)
     return get_trade_for_pair(pair, side, time, size, price, fee)
 
 
@@ -788,11 +822,15 @@ class ProcessorBuilder:
     return self
 
   def build(self) -> Tuple[Deque[Series], Deque[Entry]]:
+    processor = self.build_processor()
+    return processor.basis_queue, processor.profit_loss
+
+  def build_processor(self) -> TradeProcessor:
     processor = self.get_processor(self.asset, *self.basis_trades)
     self.processor = processor
     for trade in self.trades_to_process:
       processor.handle_trade(trade)
-    return processor.basis_queue, processor.profit_loss
+    return processor
 
   @staticmethod
   def get_processor(asset: Asset, *buys: Series) -> TradeProcessor:

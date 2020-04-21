@@ -9,7 +9,7 @@ from calculator.api.exchange_api import ExchangeApi
 from calculator.format import (
   PAIR, TIME, SIDE, TOTAL, TOTAL_IN_USD, USD_PER_BTC, ADJUSTED_VALUE,
   WASH_P_L_IDS, ADJUSTED_SIZE, TIME_STRING_FORMAT)
-from calculator.converters import CONVERTERS, USD_CONVERTER
+from calculator.converters import CONVERTERS, USD_ROUNDER
 from calculator.trade_types import Asset, Side, Pair
 from calculator.trade_processor.trade_processor import TradeProcessor
 

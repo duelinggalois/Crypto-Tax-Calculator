@@ -6,8 +6,8 @@ from typing import Deque, Tuple
 from datetime import datetime
 from pandas import Series
 
-from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME,\
-  TOTAL_IN_USD, ADJUSTED_VALUE, ID
+from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME, \
+  TOTAL_IN_USD, ADJUSTED_VALUE, ID, NEXT_YEAR_VALUE
 from calculator.trade_types import Asset, Side
 from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
 
@@ -23,6 +23,8 @@ class TradeProcessor:
     self.wash_before_loss_check: Deque[Series, ...] = basis_queue.copy()
     self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
     self.profit_loss: Deque[Entry, ...] = deque()
+    # trades could be from any year, check the last trade in the basis queue
+    self.year = basis_queue[-1][TIME].year + 1
 
   def handle_trade(self, trade: Series):
 
@@ -83,6 +85,9 @@ class TradeProcessor:
       size = self.handle_wash_trade_after_loss(size, trade)
     self.wash_before_loss_check.append(trade)
     self.basis_queue.append(trade)
+    if trade[TIME].year > self.year:
+      trade[NEXT_YEAR_VALUE] = trade[ADJUSTED_VALUE]
+      trade[ADJUSTED_VALUE] = Decimal("0")
 
   def determine_proceeds_size(self, trade: Series) -> Decimal:
 

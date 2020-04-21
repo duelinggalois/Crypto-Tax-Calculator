@@ -13,6 +13,7 @@ TOTAL = "total"
 USD_PER_BTC = "usd per btc"
 TOTAL_IN_USD = "total in usd"
 ADJUSTED_VALUE = "adjusted value"
+NEXT_YEAR_VALUE = "adjusted value next year"
 ADJUSTED_SIZE = "adjusted size"
 WASH_P_L_IDS = "wash p and l ids"
 # Other defaults
