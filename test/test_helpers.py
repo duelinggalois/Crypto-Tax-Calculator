@@ -6,7 +6,7 @@ import pytz
 from pandas import Series
 
 from calculator.auto_id_incrementer import AutoIdIncrementer
-from calculator.converters import USD_CONVERTER, USD_ROUNDER
+from calculator.converters import USD_ROUNDER
 from calculator.format import ID, PAIR, SIDE, TIME, SIZE, \
   SIZE_UNIT, PRICE, FEE, P_F_T_UNIT, TOTAL, USD_PER_BTC, TOTAL_IN_USD, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
@@ -90,12 +90,13 @@ def get_trade(
 
 
 class AutoTimeIncrementer:
-  start = datetime(2019, 1, 1, 12, 30, 0, 0, pytz.UTC)
+  # allows for adding basis trades on the day prior to the new year
+  start = datetime(2018, 12, 31, 0, 0, 0, 0, pytz.UTC)
   dt = start
 
   @classmethod
-  def get_time_and_increment(cls, days: int = 3) -> datetime:
-    td = timedelta(days)
+  def get_time_and_increment(cls, days: int = 3, hours: int = 0) -> datetime:
+    td = timedelta(days=days, hours=hours)
     time = cls.dt
     cls.dt += td
     return time

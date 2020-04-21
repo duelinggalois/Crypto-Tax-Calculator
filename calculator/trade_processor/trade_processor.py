@@ -16,13 +16,16 @@ VARIABLE_COLUMNS = [SIZE, FEE, TOTAL, TOTAL_IN_USD, ADJUSTED_VALUE]
 
 class TradeProcessor:
 
-  def __init__(self, asset: Asset, basis_queue: Deque[Series]):
+  def __init__(
+    self, asset: Asset, basis_queue: Deque[Series], track_wash=False):
 
     self.asset: Asset = asset
     self.basis_queue: Deque[Series, ...] = basis_queue
-    self.wash_before_loss_check: Deque[Series, ...] = basis_queue.copy()
-    self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
     self.profit_loss: Deque[Entry, ...] = deque()
+    self.track_wash = track_wash
+    if track_wash:
+      self.wash_before_loss_check: Deque[Series, ...] = basis_queue.copy()
+      self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
 
   def handle_trade(self, trade: Series):
 
@@ -65,7 +68,7 @@ class TradeProcessor:
 
       else:
         entry = Entry(self.asset, basis_trade, trade)
-      if entry.profit_and_loss.is_loss():
+      if self.track_wash and entry.profit_and_loss.is_loss():
         p_l = entry.profit_and_loss
         size = p_l.size
         while len(self.wash_before_loss_check) > 0 and size > 0:
@@ -79,9 +82,10 @@ class TradeProcessor:
 
   def handle_basis_trade(self, trade):
     size = self.determine_basis_size(trade)
-    while len(self.wash_after_loss_check) > 0 and size > 0:
-      size = self.handle_wash_trade_after_loss(size, trade)
-    self.wash_before_loss_check.append(trade)
+    if self.track_wash:
+      while len(self.wash_after_loss_check) > 0 and size > 0:
+        size = self.handle_wash_trade_after_loss(size, trade)
+      self.wash_before_loss_check.append(trade)
     self.basis_queue.append(trade)
 
   def determine_proceeds_size(self, trade: Series) -> Decimal:

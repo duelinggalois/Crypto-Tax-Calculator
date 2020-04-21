@@ -9,14 +9,14 @@ from calculator.api.exchange_api import ExchangeApi
 from calculator.format import (
   PAIR, TIME, SIDE, TOTAL, TOTAL_IN_USD, USD_PER_BTC, ADJUSTED_VALUE,
   WASH_P_L_IDS, ADJUSTED_SIZE, TIME_STRING_FORMAT)
-from calculator.converters import CONVERTERS, USD_CONVERTER
+from calculator.converters import CONVERTERS, USD_ROUNDER
 from calculator.trade_types import Asset, Side, Pair
 from calculator.trade_processor.trade_processor import TradeProcessor
 
 exchange_api = ExchangeApi()
 
 
-def calculate_all(path, cb_name, trade_name):
+def calculate_all(path, cb_name, trade_name, track_wash):
   try:
     # See if usd has been retrieved already
     cost_basis_df = pd.read_csv(
@@ -92,9 +92,7 @@ def calculate_all(path, cb_name, trade_name):
     ].sort_values(TIME)
 
     processor = calculate_tax_profit_and_loss(
-      asset, basis_df,
-      trades_for_asset_df
-    )
+      asset, basis_df, trades_for_asset_df, track_wash)
 
     final_basis_df = pd.DataFrame(processor.basis_queue)
     basis_side_df = pd.DataFrame(
@@ -122,9 +120,10 @@ def calculate_all(path, cb_name, trade_name):
                         date_format=TIME_STRING_FORMAT)
 
 
-def calculate_tax_profit_and_loss(asset, basis_df, asset_df: pd.DataFrame):
+def calculate_tax_profit_and_loss(
+    asset, basis_df, asset_df: pd.DataFrame, track_wash):
   basis_queue = deque(j for i, j in basis_df.iterrows())
-  processor = TradeProcessor(asset, basis_queue)
+  processor = TradeProcessor(asset, basis_queue, track_wash=track_wash)
   trade_count = len(asset_df)
   progress_len = 20
   chunk_size = trade_count // progress_len

@@ -31,15 +31,18 @@ VARIABLE_COL = [SIZE, TOTAL, FEE]
 class TestTradeProcessor(TestCase):
 
   def setUp(self) -> None:
-    # total 15000 * 0.04 + 6 = 606
-    self.basis_buy_one = self.get_btc_usd_trade(Side.BUY, Decimal("0.04"),
-                                                Decimal("15000.00"),
-                                                Decimal("6"))
-    # total 15050 * 0.02 + 3.01 = 304.01
-    self.basis_buy_two = self.get_btc_usd_trade(Side.BUY, Decimal("0.02"),
-                                                Decimal("15050.00"),
-                                                Decimal("3.01"))
+    # resets year time to midnight prior to the last day of 2018
+    test_helpers.time_incrementer.reset()
+    t_one = time_incrementer.get_time_and_increment(days=0, hours=1)
+    t_two = time_incrementer.get_time_and_increment(days=0, hours=1)
     test_helpers.exchange.set_btc_per_usd("5000")
+    # total 15000 * 0.04 + 6 = 606
+    self.basis_buy_one = self.get_btc_usd_trade(
+      Side.BUY, Decimal("0.04"), Decimal("15000.00"), Decimal("6"), time=t_one)
+    # total 15050 * 0.02 + 3.01 = 304.01
+    self.basis_buy_two = self.get_btc_usd_trade(
+      Side.BUY, Decimal("0.02"), Decimal("15050.00"),  Decimal("3.01"),
+      time=t_two)
 
   def test_buy_added_to_basis_queue(self):
     basis_buy = self.get_btc_usd_trade(Side.BUY, Decimal("0.01"),
@@ -468,7 +471,8 @@ class TestTradeProcessor(TestCase):
     non_wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("6900"),
                                       Decimal("69"))
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, non_wash).build()
+    b_q, p_l = ProcessorBuilder(buy).track_wash()\
+      .process_trades(sell, non_wash).build()
 
     self.assertEqual(len(b_q), 1, "Wash trade should be in the b_q")
     self.assertEqual(len(p_l), 1, "basis and sell are matched in the p_l")
@@ -495,7 +499,8 @@ class TestTradeProcessor(TestCase):
     sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
                                   Decimal("70"))
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(non_wash, sell).build()
+    b_q, p_l = ProcessorBuilder(buy).track_wash()\
+      .process_trades(non_wash, sell).build()
 
     self.assertEqual(len(b_q), 1, "Non wash trade should be in the b_q")
     self.assertEqual(len(p_l), 1, "basis and sell are matched in the p_l")
@@ -512,6 +517,30 @@ class TestTradeProcessor(TestCase):
     # basis should be adjusted to -6969
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-6969"))
 
+  def test_wash_trade_disabled_by_default(self):
+    """
+    wash trade logic is disabled by default.
+    """
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"))
+    wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("6900"),
+                                  Decimal("69"), days=29, hours=23)
+
+    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
+    basis = b_q.popleft()
+    entry_one = p_l.popleft()
+
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("-1150"), Decimal("-1150"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-6969"))
+
+  def test_wash_deques_do_not_exists_by_default(self):
+    processor = ProcessorBuilder().build_processor()
+    self.assertFalse("wash_before_loss_check" in dir(processor))
+    self.assertFalse("wash_after_loss_check" in dir(processor))
+
   def test_wash_trade_under_thirty_days_after(self):
     """
     If a trade is sold at a loss and then a buy is executed within 30
@@ -525,7 +554,8 @@ class TestTradeProcessor(TestCase):
     wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("6900"),
                                   Decimal("69"), days=29, hours=23)
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
+    b_q, p_l = ProcessorBuilder(buy).track_wash().process_trades(sell, wash)\
+      .build()
     basis = b_q.popleft()
     entry_one = p_l.popleft()
 
@@ -544,7 +574,8 @@ class TestTradeProcessor(TestCase):
     sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
                                   Decimal("70"), days=20, hours=23)
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(wash, sell).build()
+    b_q, p_l = ProcessorBuilder(buy).track_wash().process_trades(wash, sell)\
+      .build()
     basis = b_q.popleft()
     entry_one = p_l.popleft()
 
@@ -564,8 +595,8 @@ class TestTradeProcessor(TestCase):
     wash_two = self.get_btc_usd_trade(Side.BUY, Decimal("0.6"), Decimal("7000"),
                                       Decimal("42"), days=0, hours=1)
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash_one, wash_two)\
-      .build()
+    b_q, p_l = ProcessorBuilder(buy).track_wash()\
+      .process_trades(sell, wash_one, wash_two).build()
     self.assertEqual(len(b_q), 2)
     self.assertEqual(len(p_l), 1)
     basis_one = b_q.popleft()
@@ -594,8 +625,8 @@ class TestTradeProcessor(TestCase):
     sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
                                   Decimal("70"), days=29, hours=22)
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(wash_one, wash_two, sell)\
-      .build()
+    b_q, p_l = ProcessorBuilder(buy).track_wash()\
+      .process_trades(wash_one, wash_two, sell).build()
     self.assertEqual(len(b_q), 2)
     self.assertEqual(len(p_l), 1)
     basis_one = b_q.popleft()
@@ -622,7 +653,8 @@ class TestTradeProcessor(TestCase):
     wash = self.get_btc_usd_trade(Side.BUY, Decimal("1.2"), Decimal("6900"),
                                   Decimal("82.8"), days=29, hours=23)
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(sell, wash).build()
+    b_q, p_l = ProcessorBuilder(buy).track_wash().process_trades(sell, wash)\
+      .build()
     basis = b_q.popleft()
     entry_one = p_l.popleft()
 
@@ -644,7 +676,8 @@ class TestTradeProcessor(TestCase):
     sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
                                   Decimal("70"), days=29, hours=23)
 
-    b_q, p_l = ProcessorBuilder(buy).process_trades(wash, sell).build()
+    b_q, p_l = ProcessorBuilder(buy).track_wash().process_trades(wash, sell)\
+      .build()
     basis = b_q.popleft()
     entry_one = p_l.popleft()
 
@@ -668,7 +701,8 @@ class TestTradeProcessor(TestCase):
     wash = self.get_btc_usd_trade(Side.BUY, Decimal("1.25"), Decimal("6900"),
                                   Decimal("86.25"), days=29, hours=3)
 
-    b_q, p_l = ProcessorBuilder(buy, buy_two).process_trades(sell, wash).build()
+    b_q, p_l = ProcessorBuilder(buy, buy_two).track_wash()\
+      .process_trades(sell, wash).build()
     self.assertEqual(len(b_q), 1)
     self.assertEqual(len(p_l), 2)
     basis = b_q.popleft()
@@ -704,7 +738,7 @@ class TestTradeProcessor(TestCase):
       Pair.LTC_BTC, Side.SELL, Decimal("2.02"), Decimal("0.2"),
       Decimal("0.004"), days=0, hours=2)
 
-    b_q, p_l = ProcessorBuilder(buy, buy_two)\
+    b_q, p_l = ProcessorBuilder(buy, buy_two).track_wash()\
       .process_trades(sell, wash, wash_two)\
       .build()
     self.assertEqual(len(b_q), 2)
@@ -761,23 +795,32 @@ class TestTradeProcessor(TestCase):
 
   @classmethod
   def get_btc_usd_trade(cls, side: Side, size: Decimal, price: Decimal,
-                        fee: Decimal, days=31, hours=0):
-    return cls.get_trade(Pair.BTC_USD, side, size, price, fee, days, hours)
+                        fee: Decimal, days=31, hours=0, time=None):
+    if time is None:
+      return cls.get_trade(Pair.BTC_USD, side, size, price, fee, days, hours)
+    else:
+      return cls.get_trade(Pair.BTC_USD, side, size, price, fee, time=time)
 
   @staticmethod
   def get_trade(pair: Pair, side: Side, size: Decimal, price: Decimal,
-                fee: Decimal, days=31, hours=0):
-    time = time_incrementer.increment_and_get_time(days, hours)
+                fee: Decimal, days=31, hours=0, time=None):
+    if time is None:
+      time = time_incrementer.increment_and_get_time(days, hours)
     return get_trade_for_pair(pair, side, time, size, price, fee)
 
 
 class ProcessorBuilder:
 
   def __init__(self, *basis_trades: Series):
+    self.track_wash_enabled = False
     self.asset: Asset = Asset.BTC
     self.basis_trades: Tuple[Series] = basis_trades
     self.trades_to_process: Tuple[Series] = tuple()
     self.processor = None
+
+  def track_wash(self):
+    self.track_wash_enabled = True
+    return self
 
   def for_asset(self, asset: Asset) -> "ProcessorBuilder":
     self.asset = asset
@@ -788,16 +831,22 @@ class ProcessorBuilder:
     return self
 
   def build(self) -> Tuple[Deque[Series], Deque[Entry]]:
-    processor = self.get_processor(self.asset, *self.basis_trades)
+    processor = self.build_processor()
+    return processor.basis_queue, processor.profit_loss
+
+  def build_processor(self) -> TradeProcessor:
+    processor = self.get_processor(
+      self.asset, self.track_wash_enabled, *self.basis_trades)
     self.processor = processor
     for trade in self.trades_to_process:
       processor.handle_trade(trade)
-    return processor.basis_queue, processor.profit_loss
+    return processor
 
   @staticmethod
-  def get_processor(asset: Asset, *buys: Series) -> TradeProcessor:
+  def get_processor(
+      asset: Asset, track_wash: bool, *buys: Series) -> TradeProcessor:
     basis_queue = deque()
     for buy in buys:
       basis_queue.append(buy)
-    trade_processor = TradeProcessor(asset, basis_queue)
+    trade_processor = TradeProcessor(asset, basis_queue, track_wash=track_wash)
     return trade_processor

@@ -7,50 +7,32 @@ import calculator
 class TestMain(TestCase):
 
   @mock.patch("calculator.__main__.calculate_all")
-  def test_main(self, mock_calc_all: MagicMock):
+  @mock.patch("calculator.__main__.argparse._sys")
+  def test_main(self, mock_sys: MagicMock, mock_calc_all: MagicMock):
+    script = "/path/of/running/script/discarded/by/argparse"
     path = "/path/to/files/"
     basis = "basis_file"
     fills = "fills_file"
-    stub_arg_parser = StubArgParser(path, basis, fills)
-    calculator.__main__.argparse = stub_arg_parser
+    mock_sys.argv = [script, path, basis, fills]
 
     calculator.__main__.main()
 
     self.assertEqual(mock_calc_all.call_args_list, [
-      call(path, basis, fills)
-    ])
-    self.assertEqual(stub_arg_parser.parser.added_calls, [
-      ("path", "Path to files"),
-      ("basis", "Name of basis csv in path"),
-      ("fills", "Name of fills csv in path")
+      call(path, basis, fills, False)
     ])
 
+  @mock.patch("calculator.__main__.calculate_all")
+  @mock.patch("calculator.__main__.argparse._sys")
+  def test_main_with_wash(self, mock_sys: MagicMock, mock_calc_all: MagicMock):
+    script = "/path/of/running/script/discarded/by/argparse"
+    path = "/path/to/files/"
+    basis = "basis_file"
+    fills = "fills_file"
+    wash_flag = "--track_wash"
+    mock_sys.argv = [script, path, basis, fills, wash_flag]
 
-class StubArgs:
+    calculator.__main__.main()
 
-  def __init__(self, path: str, basis: str, fills: str ):
-    self.path = path
-    self.basis = basis
-    self.fills = fills
-
-
-class StubParser:
-
-  def __init__(self, args: StubArgs):
-    self.args = args
-    self.added_calls = []
-
-  def parse_args(self):
-    return self.args
-
-  def add_argument(self, added, help):
-    self.added_calls.append((added, help))
-
-
-class StubArgParser:
-
-  def __init__(self, path: str, basis: str, fills: str):
-    self.parser = StubParser(StubArgs(path, basis, fills))
-
-  def ArgumentParser(self):
-    return self.parser
+    self.assertEqual(mock_calc_all.call_args_list, [
+      call(path, basis, fills, True)
+    ])
