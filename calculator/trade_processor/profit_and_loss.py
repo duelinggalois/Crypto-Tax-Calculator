@@ -76,7 +76,7 @@ class ProfitAndLoss:
       }
     )
 
-  def wash_loss(self, wash_trade: Series,):
+  def wash_loss(self, wash_trade: Series):
     self.validate_wash()
     self.wash_loss_basis_ids.append(wash_trade[ID])
     wash_trade[WASH_P_L_IDS].append(self.id)
@@ -113,6 +113,7 @@ class ProfitAndLoss:
       # them in the same context and making sure that handling of this case is
       # consistent.
       wash_trade[ADJUSTED_VALUE] -= adj_loss
+    return adj_loss
 
   def validate_wash(self):
     if not self.is_loss():
@@ -120,9 +121,8 @@ class ProfitAndLoss:
 
   def is_loss(self) -> bool:
     return self.taxed_profit_and_loss < 0 or (
-        self.taxed_profit_and_loss == 0 and self.profit_and_loss < 0 and
-        self.unwashed_size > 0
-    )
+        self.taxed_profit_and_loss == 0 and
+        self.profit_and_loss < 0 < self.unwashed_size)
 
   def get_value(self, trade: Series):
     if self.asset == trade[PAIR].get_base_asset():

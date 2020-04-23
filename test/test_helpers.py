@@ -110,6 +110,10 @@ class AutoTimeIncrementer:
   def reset(cls):
     cls.dt = cls.start
 
+  @classmethod
+  def set(cls, dt: datetime):
+    cls.dt = dt
+
 
 class Exchange:
   usd_per_btc = Decimal("5000")

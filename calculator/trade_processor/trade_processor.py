@@ -28,6 +28,7 @@ class TradeProcessor:
     if track_wash:
       self.wash_before_loss_check: Deque[Series, ...] = basis_queue.copy()
       self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
+      self.entries_by_basis_id: dict[int, Entry] = {}
 
   def handle_trade(self, trade: Series):
 
@@ -70,6 +71,9 @@ class TradeProcessor:
 
       else:
         entry = Entry(self.asset, basis_trade, trade)
+      if (self.track_wash and
+          entry.basis[ID] in [b[ID] for b in self.wash_before_loss_check]):
+        self.entries_by_basis_id[entry.basis[ID]] = entry
       if self.track_wash and entry.profit_and_loss.is_loss():
         p_l = entry.profit_and_loss
         size = p_l.size
@@ -113,8 +117,14 @@ class TradeProcessor:
   def handle_wash_before_loss(self, entry, size):
     trade = self.wash_before_loss_check.popleft()
     if (entry.proceeds[TIME] - trade[TIME]).days < 30:
+      if trade[ID] == entry.basis[ID]:
+        return size
       wash_size = trade[SIZE]
-      entry.profit_and_loss.wash_loss(trade)
+      adj_loss = entry.profit_and_loss.wash_loss(trade)
+      if trade[ID] in self.entries_by_basis_id.keys():
+        self.entries_by_basis_id[trade[ID]]\
+          .profit_and_loss\
+          .taxed_profit_and_loss += adj_loss
       size -= wash_size
       if 0 < self.determine_basis_size(trade) - trade[ADJUSTED_SIZE]:
         # Wash will not be completely absorbed by loss
@@ -138,13 +148,12 @@ class TradeProcessor:
                           total_size: Decimal) -> Tuple[Series, Series]:
 
     trade_portion = Fraction(factor_size) / Fraction(total_size)
-    split = trade.copy()
     remainder: Series = trade.copy()
-    split[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] *= trade_portion.numerator
-    split[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] /= trade_portion.denominator
-    split[VARIABLE_COLUMNS] = split[VARIABLE_COLUMNS].apply(split[PAIR].quantize)
-    split[VARIABLE_USD_COLUMNS] = split[VARIABLE_USD_COLUMNS].apply(USD_ROUNDER)
-    remainder[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] -= split[
+    trade[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] *= trade_portion.numerator
+    trade[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] /= trade_portion.denominator
+    trade[VARIABLE_COLUMNS] = trade[VARIABLE_COLUMNS].apply(trade[PAIR].quantize)
+    trade[VARIABLE_USD_COLUMNS] = trade[VARIABLE_USD_COLUMNS].apply(USD_ROUNDER)
+    remainder[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] -= trade[
       VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS]
     # remainder[VARIABLE_COLUMNS].apply(trade[PAIR].quantize)
-    return split, remainder
+    return trade, remainder

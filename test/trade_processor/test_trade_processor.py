@@ -3,8 +3,10 @@ from collections import deque
 from typing import Tuple, Deque
 from unittest import TestCase
 
+from datetime import datetime
 from pandas import Series
 from pandas.testing import assert_series_equal
+import pytz
 
 from calculator.format import (
   ID, TOTAL_IN_USD, USD_PER_BTC,
@@ -15,7 +17,7 @@ from calculator.trade_processor.profit_and_loss import ProfitAndLoss, Entry
 from calculator.trade_processor.trade_processor import TradeProcessor, \
   VARIABLE_USD_COLUMNS
 from test import test_helpers
-from test.test_helpers import get_trade_for_pair, time_incrementer
+from test.test_helpers import get_trade_for_pair, time_incrementer, exchange
 
 FIXED_COL = [
   ID,
@@ -33,10 +35,10 @@ class TestTradeProcessor(TestCase):
 
   def setUp(self) -> None:
     # resets year time to midnight prior to the last day of 2018
-    test_helpers.time_incrementer.reset()
+    time_incrementer.reset()
     t_one = time_incrementer.get_time_and_increment(days=0, hours=1)
     t_two = time_incrementer.get_time_and_increment(days=0, hours=1)
-    test_helpers.exchange.set_btc_per_usd("5000")
+    exchange.set_btc_per_usd("5000")
     # total 15000 * 0.04 + 6 = 606
     self.basis_buy_one = self.get_btc_usd_trade(
       Side.BUY, Decimal("0.04"), Decimal("15000.00"), Decimal("6"), time=t_one)
@@ -259,7 +261,6 @@ class TestTradeProcessor(TestCase):
     self.verify_variable_columns(basis, "25", ".25", "0")
 
     entry = p_l.popleft()
-    ltc_btc_sell[VARIABLE_COL + VARIABLE_USD_COLUMNS] *= Decimal("0.75")
     assert_series_equal(entry.basis, ltc_btc_sell, check_exact=True)
     assert_series_equal(entry.proceeds, btc_usd_sell, check_exact=True)
     # p_l 7400 - 11000 * 3/4 = -850
@@ -574,10 +575,12 @@ class TestTradeProcessor(TestCase):
                                   Decimal("69"))
     # loss is less than 30 days after last by back
     sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
-                                  Decimal("70"), days=20, hours=23)
+                                  Decimal("70"), days=29, hours=23)
 
     b_q, p_l = ProcessorBuilder(buy).track_wash().process_trades(wash, sell)\
       .build()
+    self.assertEqual(len(b_q), 1)
+    self.assertEqual(len(p_l), 1)
     basis = b_q.popleft()
     entry_one = p_l.popleft()
 
@@ -586,6 +589,56 @@ class TestTradeProcessor(TestCase):
                         Decimal("-1150"), Decimal("0"))
     # basis should be adjusted from -6969 to -6969 - 1150 = -8119
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-8119"))
+
+  def test_wash_against_self(self):
+    time_incrementer.set(datetime(2019, 1, 1, 1, tzinfo=pytz.UTC))
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
+                                 Decimal("80"))
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("7000"),
+                                  Decimal("70"), days=29, hours=23)
+
+    b_q, p_l = ProcessorBuilder().track_wash().process_trades(buy, sell).build()
+    self.assertEqual(len(b_q), 0)
+    self.assertEqual(len(p_l), 1)
+    entry = p_l.popleft()
+    # should not wash loss against own trade
+    self.verify_p_and_l(entry.profit_and_loss, Decimal("1"), Decimal("-1150"),
+                        Decimal("-1150"))
+
+  def test_wash_with_p_l(self):
+    """
+    This case is a bit over kill, but possible. Also possible that the p_l of
+    the wash becomes a loss due to the adjustment to the basis or it was already
+    a wash loss. This could set off a domino effect where now new loss that has
+    already been checked, has an additional basis that has been unaccounted for.
+    I am not supporting this. The loss is getting left in that p and l.
+    """
+    time_incrementer.set(datetime(2019, 1, 1, 1, tzinfo=pytz.UTC))
+    wash = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("5000"),
+                                  Decimal("0"), days=1)
+    sell = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("6000"),
+                                  Decimal("0"), days=1)
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("7000"),
+                                 Decimal("0"), days=1)
+    sell_two = self.get_btc_usd_trade(Side.SELL, Decimal("1"), Decimal("6500"),
+                                      Decimal("0"), days=1)
+
+    b_q, p_l = ProcessorBuilder().track_wash()\
+      .process_trades(wash, sell, buy, sell_two).build()
+    self.assertEqual(len(b_q), 0)
+    self.assertEqual(len(p_l), 2)
+
+    entry_one = p_l.popleft()
+    entry_two = p_l.popleft()
+
+    self.verify_fixed_columns(wash, entry_one.basis)
+    self.verify_basis(wash, Decimal("-5000"), Decimal("-5500"))
+    self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
+                        Decimal("1000"), Decimal("500"))
+    self.verify_p_and_l(entry_two.profit_and_loss, Decimal("1"),
+                        Decimal("-500"), Decimal("0"))
+
+
 
   def test_wash_trades_smaller_size_than_loss_after(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
