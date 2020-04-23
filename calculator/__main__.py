@@ -13,7 +13,7 @@ def parse_command_line():
   parser.add_argument("basis", help="Name of basis csv in path")
   parser.add_argument("fills", help="Name of fills csv in path")
   parser.add_argument(
-    "--track_wash", help="Add to track wash trades", action="store_true")
+    "--track-wash", help="Add to track wash trades", action="store_true")
   return parser.parse_args()
 
 

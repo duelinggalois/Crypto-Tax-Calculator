@@ -24,4 +24,4 @@ Currently FIFO is the only supported method to support buys. Changing this shoul
 * `$ pipenv run python -m calculator /path/to/folder/ basis_trade_file.csv trade_file.csv`
 Wash loss trading is not tracked by by default but can be tracked and losses
 invalidated and added to basis of the trade that washes the loss by passing
-`--track_wash` to the script.
+`--track-wash` to the script.

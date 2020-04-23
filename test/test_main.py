@@ -28,7 +28,7 @@ class TestMain(TestCase):
     path = "/path/to/files/"
     basis = "basis_file"
     fills = "fills_file"
-    wash_flag = "--track_wash"
+    wash_flag = "--track-wash"
     mock_sys.argv = [script, path, basis, fills, wash_flag]
 
     calculator.__main__.main()
