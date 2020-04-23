@@ -22,3 +22,6 @@ Currently FIFO is the only supported method to support buys. Changing this shoul
 **Use**
 * have a folder containing a csv file for both the current tax years trades and a csv file with the trades that define your start of year account balance basis (in the case of FIFO the last buys of the prior years trades in which the sum of the sizes of each of those buys would be the account balance at the start of the year). Files should both be formatted with headers seen in the `sample_format.csv`
 * `$ pipenv run python -m calculator /path/to/folder/ basis_trade_file.csv trade_file.csv`
+Wash loss trading is not tracked by by default but can be tracked and losses
+invalidated and added to basis of the trade that washes the loss by passing
+`--track_wash` to the script.

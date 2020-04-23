@@ -12,7 +12,8 @@ from calculator.format import (
   SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE)
 from calculator.trade_types import Pair, Asset, Side
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, Entry
-from calculator.trade_processor.trade_processor import TradeProcessor
+from calculator.trade_processor.trade_processor import TradeProcessor, \
+  VARIABLE_USD_COLUMNS
 from test import test_helpers
 from test.test_helpers import get_trade_for_pair, time_incrementer
 
@@ -159,9 +160,9 @@ class TestTradeProcessor(TestCase):
     # Total: (16000 * 0.05 - 8) / 5 = 158.4
     self.verify_variable_columns(trade_part_two, "0.01", "158.4", "1.6")
     self.verify_fixed_columns(self.basis_buy_two, basis_two)
-    # p_l 158.4 - 152.005 = 6.395
+    # p_l 158.4 - 152.005 = 6.395 rounded to usd
     self.verify_p_and_l(
-      entry_two.profit_and_loss, Decimal("0.01"), Decimal("6.395")
+      entry_two.profit_and_loss, Decimal("0.01"), Decimal("6.39")
     )
 
   def test_mismatched_basis_trade(self):
@@ -258,6 +259,7 @@ class TestTradeProcessor(TestCase):
     self.verify_variable_columns(basis, "25", ".25", "0")
 
     entry = p_l.popleft()
+    ltc_btc_sell[VARIABLE_COL + VARIABLE_USD_COLUMNS] *= Decimal("0.75")
     assert_series_equal(entry.basis, ltc_btc_sell, check_exact=True)
     assert_series_equal(entry.proceeds, btc_usd_sell, check_exact=True)
     # p_l 7400 - 11000 * 3/4 = -850
@@ -738,9 +740,15 @@ class TestTradeProcessor(TestCase):
       Pair.LTC_BTC, Side.SELL, Decimal("2.02"), Decimal("0.2"),
       Decimal("0.004"), days=0, hours=2)
 
-    b_q, p_l = ProcessorBuilder(buy, buy_two).track_wash()\
+    processor = ProcessorBuilder(buy, buy_two).track_wash()\
       .process_trades(sell, wash, wash_two)\
-      .build()
+      .build_processor()
+
+    # catch bug where exhausted wash trades are added to check
+    self.assertEqual(len(processor.wash_before_loss_check), 0)
+
+    b_q = processor.basis_queue
+    p_l = processor.profit_loss
     self.assertEqual(len(b_q), 2)
     self.assertEqual(len(p_l), 2)
     entry = p_l.popleft()

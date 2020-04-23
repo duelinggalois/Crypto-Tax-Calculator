@@ -87,9 +87,21 @@ class ProfitAndLoss:
       adj_loss = self.taxed_profit_and_loss
     else:
       adj_size = size
-      adj_loss = USD_ROUNDER(self.taxed_profit_and_loss * adj_size /
+      if (self.unwashed_size - adj_size) / self.size > \
+            self.taxed_profit_and_loss / self.profit_and_loss:
+        # small fractions will add pennies repeatedly, skip them if they would
+        # shrink the taxed_profit_and_loss beyond the unwashed size
+        # proportionally.
+        adj_loss = 0
+      else:
+        adj_loss = USD_ROUNDER(self.taxed_profit_and_loss * adj_size /
                                self.unwashed_size)
+      if adj_loss < self.taxed_profit_and_loss:
+        # adjusted loss exceeds the remaining loss,
+        adj_loss = self.taxed_profit_and_loss
 
+    wash_trade[ADJUSTED_SIZE] += adj_size
+    self.unwashed_size -= adj_size
     self.taxed_profit_and_loss -= adj_loss
     if self.asset == wash_trade[PAIR].get_base_asset():
       wash_trade[ADJUSTED_VALUE] += adj_loss
@@ -101,15 +113,16 @@ class ProfitAndLoss:
       # them in the same context and making sure that handling of this case is
       # consistent.
       wash_trade[ADJUSTED_VALUE] -= adj_loss
-    wash_trade[ADJUSTED_SIZE] += adj_size
-    self.unwashed_size -= adj_size
 
   def validate_wash(self):
     if not self.is_loss():
       raise RuntimeError("wash_loss not allowed with profit:\n{}".format(self))
 
   def is_loss(self) -> bool:
-    return self.taxed_profit_and_loss < 0
+    return self.taxed_profit_and_loss < 0 or (
+        self.taxed_profit_and_loss == 0 and self.profit_and_loss < 0 and
+        self.unwashed_size > 0
+    )
 
   def get_value(self, trade: Series):
     if self.asset == trade[PAIR].get_base_asset():
