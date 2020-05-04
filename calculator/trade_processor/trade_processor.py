@@ -23,7 +23,7 @@ class TradeProcessor:
 
     self.asset: Asset = asset
     self.basis_queue: Deque[Series, ...] = basis_queue
-    self.profit_loss: Deque[Entry, ...] = deque()
+    self.entries: Deque[Entry, ...] = deque()
     self.track_wash = track_wash
     if track_wash:
       self.wash_before_loss_check: Deque[Series, ...] = basis_queue.copy()
@@ -72,8 +72,8 @@ class TradeProcessor:
       else:
         entry = Entry(self.asset, basis_trade, trade)
       if (self.track_wash and
-          entry.basis[ID] in [b[ID] for b in self.wash_before_loss_check]):
-        self.entries_by_basis_id[entry.basis[ID]] = entry
+          entry.costs[ID] in [b[ID] for b in self.wash_before_loss_check]):
+        self.entries_by_basis_id[entry.costs[ID]] = entry
       if self.track_wash and entry.profit_and_loss.is_loss():
         p_l = entry.profit_and_loss
         size = p_l.size
@@ -82,7 +82,7 @@ class TradeProcessor:
         if p_l.unwashed_size > 0:
           self.wash_after_loss_check.append((entry.proceeds[TIME], p_l))
 
-      self.profit_loss.append(entry)
+      self.entries.append(entry)
       trade_size -= basis_size
 
   def handle_basis_trade(self, trade):
@@ -114,10 +114,10 @@ class TradeProcessor:
       basis_size = basis_trade[TOTAL]
     return basis_size
 
-  def handle_wash_before_loss(self, entry, size):
+  def handle_wash_before_loss(self, entry: Entry, size: Decimal):
     trade = self.wash_before_loss_check.popleft()
     if (entry.proceeds[TIME] - trade[TIME]).days < 30:
-      if trade[ID] == entry.basis[ID]:
+      if trade[ID] == entry.costs[ID]:
         return size
       wash_size = trade[SIZE]
       adj_loss = entry.profit_and_loss.wash_loss(trade)
@@ -131,7 +131,7 @@ class TradeProcessor:
         self.wash_before_loss_check.appendleft(trade)
     return size
 
-  def handle_wash_trade_after_loss(self, size, trade):
+  def handle_wash_trade_after_loss(self, size: Decimal, trade: Series):
     # using first in first out
     last_loss_time, profit_and_loss = self.wash_after_loss_check.popleft()
     if (trade[TIME] - last_loss_time).days < 30:

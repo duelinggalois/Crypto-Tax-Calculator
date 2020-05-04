@@ -1,3 +1,4 @@
+import os
 import time
 from collections import deque
 from decimal import Decimal
@@ -10,6 +11,7 @@ from calculator.format import (
   PAIR, TIME, SIDE, TOTAL, TOTAL_IN_USD, USD_PER_BTC, ADJUSTED_VALUE,
   WASH_P_L_IDS, ADJUSTED_SIZE, TIME_STRING_FORMAT)
 from calculator.converters import CONVERTERS, USD_ROUNDER
+from calculator.trade_processor.write_output import WriteOutput
 from calculator.trade_types import Asset, Side, Pair
 from calculator.trade_processor.trade_processor import TradeProcessor
 
@@ -71,6 +73,10 @@ def calculate_all(path, cb_name, trade_name, track_wash):
   print(
     "STEP 2: Analyzing trades for the following products\n{}".format(assets)
   )
+  output_path = path + "output/"
+  if not os.path.isdir(output_path):
+    os.mkdir(output_path)
+  write_output = WriteOutput(output_path)
   for asset in assets:
     print("Starting to process {}".format(asset))
     BASE = lambda asset: asset.get_base_asset()
@@ -95,31 +101,11 @@ def calculate_all(path, cb_name, trade_name, track_wash):
     processor = calculate_tax_profit_and_loss(
       asset, basis_df, trades_for_asset_df, track_wash)
 
-    final_basis_df = pd.DataFrame(processor.basis_queue)
-    basis_side_df = pd.DataFrame(
-      (e.basis for e in processor.profit_loss)
-    ).reset_index(drop=True)
-    proceeds_side_df = pd.DataFrame(
-      (e.proceeds for e in processor.profit_loss)
-    ).reset_index(drop=True)
-    final_trade_match_df = pd.concat(
-      [basis_side_df, proceeds_side_df], axis=1,
-      keys=["Basis Trades", "Proceeds Trade"]
-    )
-    final_p_l_df = pd.DataFrame(
-      (e.profit_and_loss.get_series() for e in processor.profit_loss)
-    ).set_index("id")
+    print("Finished processing {}, saving results  csv format".format(asset))
+    write_output.write(asset, processor.basis_queue, processor.entries)
 
-    print("Finished processing {}, saving results to csv format".format(asset))
-
-    final_basis_df.to_csv("{}{}_basis.csv".format(path, asset),
-                          date_format=TIME_STRING_FORMAT)
-
-    final_trade_match_df.to_csv("{}{}_trade_match.csv".format(path, asset),
-                                date_format = TIME_STRING_FORMAT)
-    final_p_l_df.to_csv("{}{}_profit_and_loss.csv".format(path, asset),
-                        date_format=TIME_STRING_FORMAT)
-
+  # Write summary
+  write_output.write_summary()
 
 def calculate_tax_profit_and_loss(
     asset, basis_df, asset_df: pd.DataFrame, track_wash):

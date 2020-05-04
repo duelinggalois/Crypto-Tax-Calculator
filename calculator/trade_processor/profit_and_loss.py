@@ -30,7 +30,7 @@ class Entry:
   """
   
   def __init__(self, asset: Asset, basis: Series, proceeds: Series):
-    self.basis = basis
+    self.costs = basis
     self.proceeds = proceeds
     self.profit_and_loss = ProfitAndLoss(asset, basis, proceeds)
 
@@ -64,9 +64,9 @@ class ProfitAndLoss:
         "id": self.id,
         "asset": self.asset,
         "size": self.size,
-        "basis id": self.basis_id,
-        "basis pair": self.basis_pair,
-        "basis": self.basis,
+        "costs id": self.basis_id,
+        "costs pair": self.basis_pair,
+        "costs": self.basis,
         "proceeds id": self.proceeds_id,
         "proceeds pair": self.proceeds_pair,
         "proceeds": self.proceeds,

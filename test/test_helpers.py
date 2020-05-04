@@ -1,9 +1,10 @@
 from decimal import Decimal
 
 from datetime import datetime, timedelta
+from typing import Union, List, Tuple, Dict, Any
 
 import pytz
-from pandas import Series
+from pandas import Series, DataFrame
 
 from calculator.auto_id_incrementer import AutoIdIncrementer
 from calculator.converters import USD_ROUNDER
@@ -130,3 +131,23 @@ class Exchange:
 id_incrementer: AutoIdIncrementer = AutoIdIncrementer()
 time_incrementer: AutoTimeIncrementer = AutoTimeIncrementer()
 exchange = Exchange()
+
+
+class VerifyOutput:
+  output_df: Union[List[DataFrame], None] = None
+  output_args: Union[List[Tuple], None] = None
+  output_kwargs: Union[List[Dict[str, Any]], None] = None
+
+  @classmethod
+  def get_stub_to_csv(cls):
+    def to_csv(self, *args, **kwargs):
+      cls.output_df.append(self)
+      cls.output_args.append(args)
+      cls.output_kwargs.append(kwargs)
+    return to_csv
+
+  @classmethod
+  def clear(cls):
+    cls.output_df = []
+    cls.output_args = []
+    cls.output_kwargs = []

@@ -82,7 +82,7 @@ class TestTradeProcessor(TestCase):
 
     entry = p_l.popleft()
     assert_series_equal(
-      self.basis_buy_one, entry.basis, "first item should be the buy.",
+      self.basis_buy_one, entry.costs, "first item should be the buy.",
       check_exact=True
     )
     assert_series_equal(
@@ -115,7 +115,7 @@ class TestTradeProcessor(TestCase):
       "the second trade should be unchanged", check_exact=True)
 
     entry = p_l.popleft()
-    p_l_basis = entry.basis
+    p_l_basis = entry.costs
     # Total: (15000 * 0.04 + 6) * 1/4 = 151.5 fee: 6/4 - 1.5
     self.verify_variable_columns(p_l_basis, "0.01", "-151.5", "1.5")
     self.verify_fixed_columns(self.basis_buy_one, p_l_basis)
@@ -143,7 +143,7 @@ class TestTradeProcessor(TestCase):
 
     entry_one = p_l.popleft()
     assert_series_equal(
-      entry_one.basis, self.basis_buy_one,
+      entry_one.costs, self.basis_buy_one,
       "first item in entry should be the first basis.", check_exact=True)
     trade_part_one = entry_one.proceeds
     # Total: (16000 * 0.05 - 8) * 4/5 = 633.6
@@ -155,7 +155,7 @@ class TestTradeProcessor(TestCase):
     )
 
     entry_two = p_l.popleft()
-    basis_two = entry_two.basis
+    basis_two = entry_two.costs
     self.verify_variable_columns(basis_two, "0.01", "-152.005", "1.505")
     self.verify_fixed_columns(self.basis_buy_two, basis_two)
     trade_part_two = entry_two.proceeds
@@ -183,7 +183,7 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(len(p_l), 1, "p_l should have.")
 
     entry = p_l.popleft()
-    assert_series_equal(entry.basis, ltc_btc_sell, check_exact=True)
+    assert_series_equal(entry.costs, ltc_btc_sell, check_exact=True)
     assert_series_equal(entry.proceeds, btc_usd_sell, check_exact=True)
 
     # default test usd_per_btc is 5000, total in usd = 0.99 * 5000 = 4950
@@ -218,7 +218,7 @@ class TestTradeProcessor(TestCase):
     self.verify_variable_columns(basis, "15.75", "0.75", "0.0375")
 
     entry_one = p_l.popleft()
-    assert_series_equal(entry_one.basis, ltc_btc_sell, check_exact=True)
+    assert_series_equal(entry_one.costs, ltc_btc_sell, check_exact=True)
     split_btc_usd_one = entry_one.proceeds
     # fee 100 * 4/5 = 80, total 1 * 10000 - 80 = 9920
     self.verify_variable_columns(split_btc_usd_one, "1", "9920", "80")
@@ -228,7 +228,7 @@ class TestTradeProcessor(TestCase):
                         Decimal("920"))
 
     entry_two = p_l.popleft()
-    split_bch_btc_one = entry_two.basis
+    split_bch_btc_one = entry_two.costs
     # 21/4 = 5.25, 1/4 = .25, 0.05/4 = 0.0125
     self.verify_variable_columns(split_bch_btc_one, "5.25", "0.25", "0.0125")
     self.verify_fixed_columns(split_bch_btc_one, bch_btc_sell)
@@ -261,7 +261,7 @@ class TestTradeProcessor(TestCase):
     self.verify_variable_columns(basis, "25", ".25", "0")
 
     entry = p_l.popleft()
-    assert_series_equal(entry.basis, ltc_btc_sell, check_exact=True)
+    assert_series_equal(entry.costs, ltc_btc_sell, check_exact=True)
     assert_series_equal(entry.proceeds, btc_usd_sell, check_exact=True)
     # p_l 7400 - 11000 * 3/4 = -850
     self.verify_p_and_l(
@@ -284,7 +284,7 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(len(p_l), 1, "p_l should have.")
 
     entry = p_l.popleft()
-    assert_series_equal(entry.basis, btc_usd_buy, check_exact=True)
+    assert_series_equal(entry.costs, btc_usd_buy, check_exact=True)
     assert_series_equal(entry.proceeds, eth_btc_buy, check_exact=True)
     # p_l (11000 * 0.5) - (0.5 * 10000 + 50) = 450
     self.verify_p_and_l(entry.profit_and_loss, Decimal("0.5"), Decimal("450"))
@@ -310,7 +310,7 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(len(p_l), 2, "p_l should have.")
 
     entry_one = p_l.popleft()
-    assert_series_equal(entry_one.basis, btc_usd_buy_one, check_exact=True)
+    assert_series_equal(entry_one.costs, btc_usd_buy_one, check_exact=True)
     split_eth_btc_one = entry_one.proceeds
     # 7.92 *3/4 = 5.94, 0.8 * 3/4 = 0.6, 0.008 * 3/4 = 0.006
     # context switch from ETH to BTC swaps the sign for total.
@@ -321,7 +321,7 @@ class TestTradeProcessor(TestCase):
       entry_one.profit_and_loss, Decimal("0.6"), Decimal("240"))
 
     entry_two = p_l.popleft()
-    assert_series_equal(entry_two.basis, btc_usd_buy_two, check_exact=True)
+    assert_series_equal(entry_two.costs, btc_usd_buy_two, check_exact=True)
     split_eth_btc_two = entry_two.proceeds
     # 7.92 / 4 = 1.98, 0.8 / 4 = 0.2, 0.008 / 0.002
     # context switch from ETH to BTC swaps the sign for total.
@@ -354,7 +354,7 @@ class TestTradeProcessor(TestCase):
     self.verify_fixed_columns(split_btc_usd_one, btc_usd_buy)
 
     entry = p_l.popleft()
-    split_btc_usd_two = entry.basis
+    split_btc_usd_two = entry.costs
     # basis should have negative total
     self.verify_variable_columns(split_btc_usd_two, "0.4", "-4040", "40")
     self.verify_fixed_columns(split_btc_usd_one, btc_usd_buy)
@@ -378,7 +378,7 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(len(b_q), 0, "basis queue should be empty")
     self.assertEqual(len(p_l), 1, "p and l should have one entry")
     entry = p_l.popleft()
-    assert_series_equal(entry.basis, eth_usd_buy, check_exact=True)
+    assert_series_equal(entry.costs, eth_usd_buy, check_exact=True)
     assert_series_equal(entry.proceeds, eth_usd_sell, check_exact=True)
     # p_l (161.1 - 1.1) - (151 + 1) = 8
     self.verify_p_and_l(entry.profit_and_loss, Decimal("1"), Decimal("8"))
@@ -406,7 +406,7 @@ class TestTradeProcessor(TestCase):
     self.verify_variable_columns(split_eth_btc_one, "0.5", "-0.00505", "0.00005")
     self.verify_fixed_columns(split_eth_btc_one, eth_btc_buy)
 
-    split_eth_btc_two = entry.basis
+    split_eth_btc_two = entry.costs
     # context switch from ETH to BTC swaps the sign for total.
     self.verify_variable_columns(split_eth_btc_two, "0.5", "-0.00505", "0.00005")
     self.verify_fixed_columns(split_eth_btc_two, eth_btc_buy)
@@ -436,7 +436,7 @@ class TestTradeProcessor(TestCase):
     self.verify_fixed_columns(first_spilt_eth_usd, eth_usd_buy_two)
 
     entry_one = p_l.popleft()
-    assert_series_equal(entry_one.basis, eth_usd_buy_one, check_exact=True)
+    assert_series_equal(entry_one.costs, eth_usd_buy_one, check_exact=True)
     first_split_eth_btc = entry_one.proceeds
     # 1 * 3/5 = 0.6, (1 * 0.008 - 0.00008) * 3/5 = 0.004752‬,
     # 0.00008 * 3/5 = 0.000048‬
@@ -448,7 +448,7 @@ class TestTradeProcessor(TestCase):
       entry_one.profit_and_loss, Decimal("0.6"), Decimal("-67.746"))
 
     entry_two = p_l.popleft()
-    second_split_eth_usd = entry_two.basis
+    second_split_eth_usd = entry_two.costs
     # basis should have negative total
     self.verify_variable_columns(second_split_eth_usd, "0.4", "-62.62", "0.62")
     self.verify_fixed_columns(second_split_eth_usd, eth_usd_buy_two)
@@ -484,7 +484,7 @@ class TestTradeProcessor(TestCase):
     assert_series_equal(basis, non_wash, check_exact=True)
 
     entry_one = p_l.popleft()
-    assert_series_equal(entry_one.basis, buy, check_exact=True)
+    assert_series_equal(entry_one.costs, buy, check_exact=True)
     assert_series_equal(entry_one.proceeds, sell, check_exact=True)
     # Loss would be 8080 - 6930 = 1150
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"), Decimal("-1150"))
@@ -512,7 +512,7 @@ class TestTradeProcessor(TestCase):
     assert_series_equal(basis, non_wash, check_exact=True)
 
     entry_one = p_l.popleft()
-    assert_series_equal(entry_one.basis, buy, check_exact=True)
+    assert_series_equal(entry_one.costs, buy, check_exact=True)
     assert_series_equal(entry_one.proceeds, sell, check_exact=True)
     # Loss would be 8080 - 6930 = 1150
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
@@ -631,7 +631,7 @@ class TestTradeProcessor(TestCase):
     entry_one = p_l.popleft()
     entry_two = p_l.popleft()
 
-    self.verify_fixed_columns(wash, entry_one.basis)
+    self.verify_fixed_columns(wash, entry_one.costs)
     self.verify_basis(wash, Decimal("-5000"), Decimal("-5500"))
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("1000"), Decimal("500"))
@@ -801,7 +801,7 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(len(processor.wash_before_loss_check), 0)
 
     b_q = processor.basis_queue
-    p_l = processor.profit_loss
+    p_l = processor.entries
     self.assertEqual(len(b_q), 2)
     self.assertEqual(len(p_l), 2)
     entry = p_l.popleft()
@@ -893,7 +893,7 @@ class ProcessorBuilder:
 
   def build(self) -> Tuple[Deque[Series], Deque[Entry]]:
     processor = self.build_processor()
-    return processor.basis_queue, processor.profit_loss
+    return processor.basis_queue, processor.entries
 
   def build_processor(self) -> TradeProcessor:
     processor = self.get_processor(
