@@ -3,7 +3,7 @@ from typing import Deque, List, Union
 
 from pandas import DataFrame, Series
 
-from calculator.format import ADJUSTED_VALUE
+from calculator.format import ADJUSTED_VALUE, TIME_STRING_FORMAT
 from calculator.trade_processor.profit_and_loss import Entry
 from calculator.trade_types import Asset
 
@@ -27,7 +27,8 @@ class WriteOutput:
     self.summary["profit and loss"] = []
     self.summary["remaining basis"] = []
 
-  def write(self, asset: Asset, basis_queue: Deque[Series], entries: Deque[Entry]):
+  def write(self, asset: Asset, basis_queue: Deque[Series],
+            entries: Deque[Entry]):
     self.asset = asset
     basis_df = DataFrame(basis_queue)
     costs_df = DataFrame(e.costs for e in entries)
@@ -72,7 +73,7 @@ class WriteOutput:
     self.summary["remaining basis"].append(basis_df[ADJUSTED_VALUE].sum())
 
   def _write_for_asset(self, basis_df, costs_df, proceeds_df,
-      profit_and_loss_df):
+                       profit_and_loss_df):
     self.write_basis(basis_df)
     self.write_costs(costs_df)
     self.write_proceeds(proceeds_df)
@@ -81,6 +82,6 @@ class WriteOutput:
   @staticmethod
   def _to_csv(df: DataFrame, path: str, add_index):
     if add_index:
-      df.reset_index(drop=True).to_csv(path, index=add_index)
-    else:
-      df.to_csv(path, index=add_index)
+      df = df.reset_index(drop=True)
+
+    df.to_csv(path, index=add_index, date_format=TIME_STRING_FORMAT)

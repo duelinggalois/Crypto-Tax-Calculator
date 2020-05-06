@@ -6,7 +6,7 @@ from calculator.format import TIME_STRING_FORMAT, SIZE, PAIR, SIDE, TIME, \
   PRICE, FEE, TOTAL, USD_PER_BTC, TOTAL_IN_USD, SIZE_UNIT, P_F_T_UNIT
 
 
-USD_CONVERTER = lambda x: USD_ROUNDER(Decimal(x)) if x != "" else Decimal("nan")
+USD_CONVERTER = lambda x: USD_ROUNDER(Decimal(x)) if x != "" else Decimal("NaN")
 USD_ROUNDER = lambda x: x.quantize(Decimal("0.01"), rounding=ROUND_UP)
 TEN_PLACE_CONVERTER = lambda x: Decimal(x).quantize(Decimal("0.0000000001"))
 PAIR_CONVERTER = lambda x: Pair[x.replace("-", "_")]

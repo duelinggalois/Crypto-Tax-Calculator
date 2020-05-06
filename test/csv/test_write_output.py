@@ -8,8 +8,9 @@ from unittest.mock import MagicMock
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
+from calculator.format import TIME_STRING_FORMAT
 from calculator.trade_processor.profit_and_loss import Entry
-from calculator.trade_processor.write_output import WriteOutput, BASIS_SFX, \
+from calculator.csv.write_output import WriteOutput, BASIS_SFX, \
   COSTS_SFX, PROCEEDS_SFX, PROFIT_AND_LOSS_SFX, SUMMARY
 from calculator.trade_types import Pair, Side, Asset
 from test.test_helpers import get_trade_for_pair, time_incrementer, VerifyOutput
@@ -66,7 +67,7 @@ ENTRY_TWO = Entry(ASSET, TRADE_THREE, TRADE_FOUR)
 LTC_ENTRY_ONE = Entry(Asset.LTC, LTC_ONE, LTC_TWO)
 LTC_ENTRY_TWO = Entry(Asset.LTC, LTC_THREE, LTC_FOUR)
 PATH = "/test/path/"
-MOCK_TO_CSV_PATH = "calculator.trade_processor.write_output.DataFrame.to_csv"
+MOCK_TO_CSV_PATH = "calculator.csv.write_output.DataFrame.to_csv"
 
 
 class TestWriteOutput(TestCase):
@@ -220,5 +221,6 @@ class TestWriteOutput(TestCase):
     self.assertEqual(len(output_args), 1)
     args = output_args[0]
     self.assertEqual(args, file_name)
-    self.assertEqual(output_kwargs.keys(), {"index"})
+    self.assertEqual(output_kwargs.keys(), {"index", "date_format"})
     self.assertEqual(output_kwargs["index"], add_index)
+    self.assertEqual(output_kwargs["date_format"], TIME_STRING_FORMAT)

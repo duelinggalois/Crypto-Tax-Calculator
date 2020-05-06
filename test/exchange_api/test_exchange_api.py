@@ -8,7 +8,6 @@ from pytz import UTC
 from requests.models import Response
 
 from calculator.api.exchange_api import ExchangeApi, get_next_minute
-from calculator.trade_types import Pair
 
 RATE_LIMIT_EXCEEDED = {"message": 'Slow rate limit exceeded'}
 
@@ -26,7 +25,6 @@ class TestExchangeApi(TestCase):
     iso_start_time = "2018-04-20T14:31:18.458000Z"
     iso_expected_end = "2018-04-20T14:32:18.458000Z"
     start_time = datetime(2018, 4, 20, 14, 31, 18, 458000, tzinfo=UTC)
-    pair = Pair.BTC_USD
     expected_url = (
       "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
       "granularity=60"
@@ -35,7 +33,7 @@ class TestExchangeApi(TestCase):
 
     api = ExchangeApi()
     mock_get.return_value = get_stub_response(8883.56)
-    close = api.get_close(start_time, pair)
+    close = api.get_close(start_time)
 
     self.assertEqual(expected_close, close)
     mock_get.assert_called_once_with(expected_url)
@@ -45,7 +43,6 @@ class TestExchangeApi(TestCase):
     start_time = datetime(2019, 4, 21, 12, 19, 14, 345000, tzinfo=UTC)
     iso_start_time = "2019-04-21T12:19:14.345000Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
-    pair = Pair.BTC_USD
     expected_url = (
       "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
       "granularity=60"
@@ -57,7 +54,7 @@ class TestExchangeApi(TestCase):
       get_stub_response(8884.56)
     ]
 
-    close = api.get_close(start_time, pair)
+    close = api.get_close(start_time)
 
     self.assertEqual(expected_close, close)
 
@@ -72,7 +69,6 @@ class TestExchangeApi(TestCase):
     start_time = datetime(2019, 4, 21, 12, 19, 14, 345000, tzinfo=UTC)
     iso_start_time = "2019-04-21T12:19:14.345000Z"
     iso_expected_end = "2019-04-21T12:20:14.345000Z"
-    pair = Pair.BTC_USD
     expected_url = (
       "https://api.pro.coinbase.com/products/{}/candles?start={}&end={}&"
       "granularity=60"
@@ -81,7 +77,7 @@ class TestExchangeApi(TestCase):
     mock_get.return_value = StubResponse({"message": "unknown error"})
 
     with self.assertRaises(NotImplementedError) as context:
-      api.get_close(start_time, pair)
+      api.get_close(start_time)
     self.assertEqual("Unknown message from api: unknown error",
                      str(context.exception))
 

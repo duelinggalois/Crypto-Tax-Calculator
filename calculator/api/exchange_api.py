@@ -13,8 +13,8 @@ BASE_URL = "https://api.pro.coinbase.com/products/"
 
 class ExchangeApi:
 
-  def get_close(self, date_time: datetime, pair: Pair) -> float:
-    url = BASE_URL + "{}/candles".format(pair)
+  def get_close(self, date_time: datetime) -> Decimal:
+    url = BASE_URL + "{}/candles".format(Pair.BTC_USD)
     response = requests.get(
       "{}?start={}&end={}&granularity=60".format(
         url,
@@ -24,17 +24,19 @@ class ExchangeApi:
     )
     data = response.json()
     if "message" in data:
-      return self.__handle_error(data, date_time, pair)
+      return self.__handle_error(data, date_time)
 
     # last response comes first and close is the 4th index
     return USD_CONVERTER(data[0][4])
 
-  def __handle_error(self, data: dict, iso_time: datetime, pair: Pair) -> float:
+  def __handle_error(
+    self, data: dict, iso_time: datetime) -> Decimal:
+
     # Issue could be a rate limited by api
     if data["message"] == "Slow rate limit exceeded":
       print("API rate limit exceeded, pausing for 1 seconds")
       time.sleep(1)
-      return self.get_close(iso_time, pair)
+      return self.get_close(iso_time)
     raise NotImplementedError("Unknown message from api: {}"
                               .format(data["message"]))
 

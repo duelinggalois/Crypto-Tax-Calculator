@@ -1,4 +1,4 @@
-from decimal import Decimal, ROUND_UP
+from decimal import Decimal
 import pprint
 from typing import List
 
@@ -12,7 +12,7 @@ from calculator.trade_types import Pair, Asset, Side
 from calculator.auto_id_incrementer import AutoIdIncrementer
 
 INVALID_SIZE_MESSAGE = "Sizes must be the same: {}, {}\n" \
-                        "Basis:\n{}\n" \
+                        "Basis:\dn{}\n" \
                         "Proceeds:\n{}"
 INVALID_MATCH = lambda b, b_size, p, p_size: INVALID_SIZE_MESSAGE.format(
   b_size, p_size,
