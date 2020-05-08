@@ -5,15 +5,17 @@ from unittest import TestCase, mock
 from datetime import datetime
 from unittest.mock import MagicMock
 
+import pandas as pd
 from pandas import DataFrame
 from pandas.testing import assert_frame_equal
 
-from calculator.format import TIME_STRING_FORMAT
+from calculator.format import TIME_STRING_FORMAT, BASIS_SFX, COSTS_SFX, \
+  PROCEEDS_SFX, PROFIT_AND_LOSS_SFX, SUMMARY, COMBINED_BASIS
 from calculator.trade_processor.profit_and_loss import Entry
-from calculator.csv.write_output import WriteOutput, BASIS_SFX, \
-  COSTS_SFX, PROCEEDS_SFX, PROFIT_AND_LOSS_SFX, SUMMARY
+from calculator.csv.write_output import WriteOutput
 from calculator.trade_types import Pair, Side, Asset
-from test.test_helpers import get_trade_for_pair, time_incrementer, VerifyOutput
+from test.test_helpers import get_trade_for_pair, time_incrementer, \
+  VerifyOutput, PASS_IF_CALLED
 
 TIME_ONE = time_incrementer.get_time_and_increment(0, 1)
 TIME_TWO = time_incrementer.get_time_and_increment(0, 1)
@@ -172,11 +174,15 @@ class TestWriteOutput(TestCase):
       [PATH, ASSET.value, "_", PROFIT_AND_LOSS_SFX]), False)
 
   @mock.patch(MOCK_TO_CSV_PATH, new=verify_output.get_stub_to_csv())
-  @mock.patch.object(WriteOutput, "write_profit_and_loss")
-  @mock.patch.object(WriteOutput, "write_proceeds")
-  @mock.patch.object(WriteOutput, "write_costs")
-  @mock.patch.object(WriteOutput, "write_basis")
-  def test_write_output(self, *mocks):
+  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_proceeds", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_costs", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_basis", new=PASS_IF_CALLED)
+  def test_write_output(self):
+    """
+    PASS_IF_CALLED used to ensure data is not written, methods are tested in
+    other tests.
+    """
     self.basis_queue.append(BASIS_ONE)
     self.basis_queue.append(BASIS_TWO)
     self.entries.append(ENTRY_ONE)
@@ -194,15 +200,29 @@ class TestWriteOutput(TestCase):
     # LTC
     # matched basis: -4 - 15 = -19, matched proceeds: 4.5 + 12 = 16.5,
     # p_l: 16.5 - 19 = -2.5, basis: -6 + -9 = -15
-    expected_df = DataFrame({
+    expected_summary_df = DataFrame({
       "asset": [Asset.BTC, Asset.LTC],
       "costs": [Decimal(-340), Decimal(-19)],
       "proceeds": [Decimal(370), Decimal("16.5")],
       "profit and loss": [Decimal(30), Decimal("-2.5")],
       "remaining basis": [Decimal(-290), Decimal(-15)]
     })
+    summary_path = PATH + SUMMARY
+    summary_index = False
 
-    self.validate_output(expected_df, "".join([PATH, SUMMARY]), False)
+    expected_basis_df = pd.concat([
+      DataFrame(self.basis_queue),
+      DataFrame(ltc_basis)
+    ])
+    basis_path = PATH + COMBINED_BASIS
+    basis_index = False
+
+    self.validate_multiple_outputs(
+      2,
+      (expected_summary_df, expected_basis_df),
+      (summary_path, basis_path),
+      (summary_index, basis_index)
+    )
 
   @staticmethod
   def validate_df_call(method: MagicMock, expected_df: DataFrame):
@@ -211,16 +231,27 @@ class TestWriteOutput(TestCase):
     assert_frame_equal(output_df, expected_df, check_exact=True)
 
   def validate_output(self, expected_df, file_name, add_index):
-    self.assertEqual(len(self.verify_output.output_df), 1)
-    self.assertEqual(len(self.verify_output.output_args), 1)
-    self.assertEqual(len(self.verify_output.output_kwargs), 1)
-    output_df = self.verify_output.output_df[0]
-    output_args = self.verify_output.output_args[0]
-    output_kwargs = self.verify_output.output_kwargs[0]
-    assert_frame_equal(output_df, expected_df, check_exact=True)
-    self.assertEqual(len(output_args), 1)
-    args = output_args[0]
-    self.assertEqual(args, file_name)
-    self.assertEqual(output_kwargs.keys(), {"index", "date_format"})
-    self.assertEqual(output_kwargs["index"], add_index)
-    self.assertEqual(output_kwargs["date_format"], TIME_STRING_FORMAT)
+    self.validate_multiple_outputs(1, (expected_df,), (file_name,),
+                                   (add_index,))
+
+  def validate_multiple_outputs(self, n, expected_dfs, file_names, add_indexes):
+    self.assertEqual(len(expected_dfs), n)
+    self.assertEqual(len(file_names), n)
+    self.assertEqual(len(add_indexes), n)
+    self.assertEqual(len(self.verify_output.output_df), n)
+    self.assertEqual(len(self.verify_output.output_args), n)
+    self.assertEqual(len(self.verify_output.output_kwargs), n)
+    for i in range(n):
+      expected_df = expected_dfs[i]
+      file_name = file_names[i]
+      add_index = add_indexes[i]
+      output_df = self.verify_output.output_df[i]
+      output_args = self.verify_output.output_args[i]
+      output_kwargs = self.verify_output.output_kwargs[i]
+      assert_frame_equal(output_df, expected_df, check_exact=True)
+      self.assertEqual(len(output_args), 1)
+      args = output_args[0]
+      self.assertEqual(args, file_name)
+      self.assertEqual(output_kwargs.keys(), {"index", "date_format"})
+      self.assertEqual(output_kwargs["index"], add_index)
+      self.assertEqual(output_kwargs["date_format"], TIME_STRING_FORMAT)
