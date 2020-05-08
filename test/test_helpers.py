@@ -151,3 +151,6 @@ class VerifyOutput:
     cls.output_df = []
     cls.output_args = []
     cls.output_kwargs = []
+
+
+PASS_IF_CALLED = lambda *x, **y: None

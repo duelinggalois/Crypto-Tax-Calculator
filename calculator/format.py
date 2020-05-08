@@ -30,3 +30,9 @@ COLUMNS = [
     "USD per BTC (Sold)", "Proceeds USD",
     "Gain or Loss", "Wash Trade Loss", "Notes"
   ]
+BASIS_SFX = "basis.csv"
+COSTS_SFX = "costs.csv"
+PROCEEDS_SFX = "proceeds.csv"
+PROFIT_AND_LOSS_SFX = "profit_and_loss.csv"
+SUMMARY = "summary.csv"
+COMBINED_BASIS = "combined_basis.csv"

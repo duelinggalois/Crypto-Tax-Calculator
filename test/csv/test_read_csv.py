@@ -14,8 +14,7 @@ from calculator.format import ID, PAIR, SIDE, TIME, SIZE, SIZE_UNIT, PRICE, \
   FEE, P_F_T_UNIT, USD_PER_BTC, TOTAL_IN_USD, TOTAL, TIME_STRING_FORMAT
 from calculator.csv.read_csv import ReadCsv
 from calculator.trade_types import Pair, Side, Asset
-from test.test_helpers import time_incrementer
-
+from test.test_helpers import time_incrementer, PASS_IF_CALLED
 
 time_incrementer.set(datetime(2019, 10, 1))
 TIME1 = time_incrementer.get_time_and_increment(1, 1)
@@ -47,7 +46,6 @@ BASIS_DF_W_USD[TOTAL_IN_USD] =[
   )]
 RAISE_IF_CALLED = lambda *x, **y: exec(
   "raise(AssertionError('Method should not be called'))")
-PASS_IF_CALLED = lambda *x, **y: None
 
 
 def patch_read_csv(path, *args, **kwargs):
