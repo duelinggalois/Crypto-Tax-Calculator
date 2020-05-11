@@ -5,11 +5,12 @@ from decimal import Decimal
 from typing import Set
 
 import pandas as pd
+from pandas import DataFrame
 
 from calculator.api.exchange_api import ExchangeApi
 from calculator.format import (
   PAIR, TIME, SIDE, TOTAL_IN_USD, ADJUSTED_VALUE,
-  WASH_P_L_IDS, ADJUSTED_SIZE)
+  WASH_P_L_IDS, ADJUSTED_SIZE, SIZE_UNIT, P_F_T_UNIT)
 from calculator.csv.read_csv import ReadCsv
 from calculator.csv.write_output import WriteOutput
 from calculator.trade_types import Asset, Side
@@ -29,11 +30,7 @@ def calculate_all(path, cb_name, trade_name, track_wash):
   trades_df[ADJUSTED_VALUE] = trades_df[TOTAL_IN_USD]
   trades_df[ADJUSTED_SIZE] = Decimal(0)
   trades_df[WASH_P_L_IDS] = pd.Series([] for i in range(len(trades_df)))
-  assets: Set[Asset] = set()
-  for pair in trades_df[PAIR]:
-    assets.add(pair.get_base_asset())
-    assets.add(pair.get_quote_asset())
-  assets.remove(Asset.USD)
+  assets = get_assets(cost_basis_df, trades_df)
   print(
     "STEP 2: Analyzing trades for the following products\n{}".format(assets)
   )
@@ -87,7 +84,17 @@ def calculate_tax_profit_and_loss(
     chunk = progress_len * count // trade_count
     print("[{}{}]".format("*" * chunk, " " * (progress_len - chunk)), end="\r")
   end = time.time()
-  lapsed = end-start
-  print("\n\nProcessed trades in {} seconds {} per trade\n".format(
-        lapsed, lapsed/trade_count))
+  lapsed = end - start
+  if trade_count > 0:
+    print("\n\nProcessed trades in {} seconds {} per trade\n".format(
+      lapsed, lapsed / trade_count))
   return processor
+
+
+def get_assets(basis_df: DataFrame, trades_df: DataFrame) -> Set[Asset]:
+  assets: Set[Asset] = set(basis_df[SIZE_UNIT].unique())
+  assets.update(trades_df[SIZE_UNIT].unique())
+  assets.update(trades_df[P_F_T_UNIT])
+  if Asset.USD in assets:
+    assets.remove(Asset.USD)
+  return assets
