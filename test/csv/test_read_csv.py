@@ -47,7 +47,6 @@ BASIS_DF_W_USD[TOTAL_IN_USD] =[
 RAISE_IF_CALLED = lambda *x, **y: exec(
   "raise(AssertionError('Method should not be called'))")
 
-
 def patch_read_csv(path, *args, **kwargs):
   if "converters" not in kwargs or kwargs["converters"] != CONVERTERS:
     raise AssertionError(

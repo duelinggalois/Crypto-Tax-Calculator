@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from decimal import Decimal
 from typing import Deque, List, Union
 
 import pandas as pd
@@ -17,7 +18,8 @@ class WriteOutput:
     self.path_form: str = "{}{}_{}".format(path, "{}", "{}")
     self.summary_path: str = "{}{}".format(path, SUMMARY)
     self.combined_path: str = "{}{}".format(path, COMBINED_BASIS)
-    self.summary: OrderedDict[str, List[Series]] = OrderedDict()
+    self.summary: OrderedDict[str, Union[List[Asset], List[Decimal]]] = \
+      OrderedDict()
     self.summary["asset"] = []
     self.summary["costs"] = []
     self.summary["proceeds"] = []
@@ -27,6 +29,18 @@ class WriteOutput:
 
   def write(self, asset: Asset, basis_queue: Deque[Series],
             entries: Deque[Entry]):
+    def update_summary(pl_df, b_df, summary, combined_basis):
+      self.summary["asset"].append(asset)
+      has_values = len(pl_df) > 0
+      costs = pl_df["costs"].sum() if has_values else Decimal(0)
+      proceeds = pl_df["proceeds"].sum() if has_values else Decimal(0)
+      pl = pl_df["adjusted for wash loss"].sum() if has_values else Decimal(0)
+      summary["costs"].append(costs)
+      summary["proceeds"].append(proceeds)
+      summary["profit and loss"].append(pl)
+      summary["remaining basis"].append(b_df[ADJUSTED_VALUE].sum())
+      combined_basis.append(b_df)
+
     self.asset = asset
     basis_df = DataFrame(basis_queue)
     costs_df = DataFrame(e.costs for e in entries)
@@ -34,28 +48,21 @@ class WriteOutput:
     profit_and_loss_df = DataFrame(
       e.profit_and_loss.get_series() for e in entries)
 
-    self._update_summary(asset, basis_df, profit_and_loss_df)
+    update_summary(profit_and_loss_df, basis_df, self.summary,
+                   self.combined_basis)
     self._write_for_asset(basis_df, costs_df, proceeds_df, profit_and_loss_df)
     self.asset = None
 
-  def write_basis(self, df: DataFrame, asset: Asset = None):
-    if asset is None:
-      asset = self.asset
+  def write_basis(self, df: DataFrame, asset: Asset):
     self._to_csv(df, self.path_form.format(asset, BASIS_SFX), False)
 
-  def write_costs(self, df: DataFrame, asset: Asset = None):
-    if asset is None:
-      asset = self.asset
+  def write_costs(self, df: DataFrame, asset: Asset):
     self._to_csv(df, self.path_form.format(asset, COSTS_SFX), True)
 
-  def write_proceeds(self, df: DataFrame, asset: Asset = None):
-    if asset is None:
-      asset = self.asset
+  def write_proceeds(self, df: DataFrame, asset: Asset):
     self._to_csv(df, self.path_form.format(asset, PROCEEDS_SFX), True)
 
-  def write_profit_and_loss(self, df: DataFrame, asset: Asset = None):
-    if asset is None:
-      asset = self.asset
+  def write_profit_and_loss(self, df: DataFrame, asset: Asset):
     self._to_csv(df, self.path_form.format(asset, PROFIT_AND_LOSS_SFX), False)
 
   def write_summary(self):
@@ -63,21 +70,12 @@ class WriteOutput:
     self._to_csv(df, self.summary_path, False)
     self._to_csv(pd.concat(self.combined_basis), self.combined_path, False)
 
-  def _update_summary(self, asset, basis_df, profit_and_loss_df):
-    self.summary["asset"].append(asset)
-    self.summary["costs"].append(profit_and_loss_df["costs"].sum())
-    self.summary["proceeds"].append(profit_and_loss_df["proceeds"].sum())
-    self.summary["profit and loss"].append(
-      profit_and_loss_df["adjusted for wash loss"].sum())
-    self.summary["remaining basis"].append(basis_df[ADJUSTED_VALUE].sum())
-    self.combined_basis.append(basis_df)
-
   def _write_for_asset(self, basis_df, costs_df, proceeds_df,
                        profit_and_loss_df):
-    self.write_basis(basis_df)
-    self.write_costs(costs_df)
-    self.write_proceeds(proceeds_df)
-    self.write_profit_and_loss(profit_and_loss_df)
+    self.write_basis(basis_df, self.asset)
+    self.write_costs(costs_df, self.asset)
+    self.write_proceeds(proceeds_df, self.asset)
+    self.write_profit_and_loss(profit_and_loss_df, self.asset)
 
   @staticmethod
   def _to_csv(df: DataFrame, path: str, add_index):

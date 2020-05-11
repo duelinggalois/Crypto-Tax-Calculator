@@ -168,7 +168,7 @@ class TestWriteOutput(TestCase):
   def test_write_profit_and_loss_multiple(self):
     self.write_output.asset = ASSET
     df = DataFrame([ENTRY_ONE.profit_and_loss.get_series(), ENTRY_TWO.profit_and_loss.get_series()])
-    self.write_output.write_profit_and_loss(df)
+    self.write_output.write_profit_and_loss(df, ASSET)
 
     self.validate_output(df, "".join(
       [PATH, ASSET.value, "_", PROFIT_AND_LOSS_SFX]), False)
@@ -217,6 +217,35 @@ class TestWriteOutput(TestCase):
     basis_path = PATH + COMBINED_BASIS
     basis_index = False
 
+    self.validate_multiple_outputs(
+      2,
+      (expected_summary_df, expected_basis_df),
+      (summary_path, basis_path),
+      (summary_index, basis_index)
+    )
+
+  @mock.patch(MOCK_TO_CSV_PATH, new=verify_output.get_stub_to_csv())
+  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_proceeds", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_costs", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_basis", new=PASS_IF_CALLED)
+  def test_write_empty_p_l(self):
+    self.basis_queue.append(BASIS_ONE)
+    self.basis_queue.append(BASIS_TWO)
+    self.write_output.write(Asset.BTC, self.basis_queue, deque())
+    self.write_output.write_summary()
+    expected_summary_df = DataFrame({
+      "asset": [Asset.BTC],
+      "costs": [Decimal(0)],
+      "proceeds": [Decimal(0)],
+      "profit and loss": [Decimal(0)],
+      "remaining basis": [Decimal(-290)]
+    })
+    summary_path = PATH + SUMMARY
+    summary_index = False
+    expected_basis_df = DataFrame(self.basis_queue)
+    basis_path = PATH + COMBINED_BASIS
+    basis_index = False
     self.validate_multiple_outputs(
       2,
       (expected_summary_df, expected_basis_df),
