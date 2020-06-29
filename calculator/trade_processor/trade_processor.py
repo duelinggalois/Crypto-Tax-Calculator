@@ -8,7 +8,7 @@ from pandas import Series
 
 from calculator.converters import USD_ROUNDER
 from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME,\
-  TOTAL_IN_USD, ADJUSTED_VALUE, ID, ADJUSTED_SIZE
+  VALUE_IN_USD, ADJUSTED_VALUE, ID, ADJUSTED_SIZE
 from calculator.trade_types import Asset, Side
 from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
 
@@ -29,9 +29,9 @@ class TradeProcessor:
       self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
       self.entries_by_basis_id: dict[int, Entry] = {}
       # wash tracking adds additional columns that need to be changed.
-      self.variable_usd_columns = [TOTAL_IN_USD, ADJUSTED_VALUE]
+      self.variable_usd_columns = [VALUE_IN_USD, ADJUSTED_VALUE]
     else:
-      self.variable_usd_columns = [TOTAL_IN_USD]
+      self.variable_usd_columns = [VALUE_IN_USD]
 
   def handle_trade(self, trade: Series):
 
@@ -45,11 +45,9 @@ class TradeProcessor:
     product = trade[PAIR]
     side = trade[SIDE]
     return (
-      product.get_base_asset() == self.asset
-      and side == Side.SELL
+      product.get_base_asset() == self.asset and side == Side.SELL
     ) or (
-      product.get_quote_asset() == self.asset
-      and side == Side.BUY)
+      product.get_quote_asset() == self.asset and side == Side.BUY)
 
   def handle_proceeds_trade(self, trade: Series) -> None:
 
@@ -74,8 +72,8 @@ class TradeProcessor:
 
       else:
         entry = Entry(self.asset, basis_trade, trade)
-      if (self.track_wash and
-          entry.costs[ID] in [b[ID] for b in self.wash_before_loss_check]):
+      if (self.track_wash and entry.costs[ID] in
+            [b[ID] for b in self.wash_before_loss_check]):
         self.entries_by_basis_id[entry.costs[ID]] = entry
       if self.track_wash and entry.profit_and_loss.is_loss():
         p_l = entry.profit_and_loss

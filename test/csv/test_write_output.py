@@ -41,8 +41,8 @@ BASIS_ONE = get_trade_for_pair(
 BASIS_TWO = get_trade_for_pair(
   Pair.BTC_USD, Side.BUY, TIME_SIX, Decimal("0.01"), Decimal(15000),
   Decimal(0))
-# matched basis: -100 - 240 = -340, matched proceeds: 110 + 260 = 370,
-# p_l: 370 - 340 = 30, basis: -140 + -150 = -290
+# matched basis: 100 + 240 = 340, matched proceeds: 110 + 260 = 370,
+# p_l: 370 - 340 = 30, basis: 140 + 150 = 290
 LTC_ONE = get_trade_for_pair(
   Pair.LTC_USD, Side.BUY, TIME_ONE, Decimal("0.1"), Decimal(40), Decimal(0)
 )
@@ -167,7 +167,10 @@ class TestWriteOutput(TestCase):
   @mock.patch(MOCK_TO_CSV_PATH, new=verify_output.get_stub_to_csv())
   def test_write_profit_and_loss_multiple(self):
     self.write_output.asset = ASSET
-    df = DataFrame([ENTRY_ONE.profit_and_loss.get_series(), ENTRY_TWO.profit_and_loss.get_series()])
+    df = DataFrame([
+      ENTRY_ONE.profit_and_loss.get_series(),
+      ENTRY_TWO.profit_and_loss.get_series()
+    ])
     self.write_output.write_profit_and_loss(df, ASSET)
 
     self.validate_output(df, "".join(
@@ -178,7 +181,7 @@ class TestWriteOutput(TestCase):
   @mock.patch.object(WriteOutput, "write_proceeds", new=PASS_IF_CALLED)
   @mock.patch.object(WriteOutput, "write_costs", new=PASS_IF_CALLED)
   @mock.patch.object(WriteOutput, "write_basis", new=PASS_IF_CALLED)
-  def test_write_output(self):
+  def test_write_outputs(self):
     """
     PASS_IF_CALLED used to ensure data is not written, methods are tested in
     other tests.
@@ -195,17 +198,17 @@ class TestWriteOutput(TestCase):
     self.write_output.write_summary()
 
     # BTC
-    # matched basis: -100 - 240 = -340, matched proceeds: 110 + 260 = 370,
-    # p_l: 370 - 340 = 30, basis: -140 + -150 = -290
+    # matched basis: 100 + 240 = 340, matched proceeds: 110 + 260 = 370,
+    # p_l: 370 - 340 = 30, basis: 140 + 150 = 290
     # LTC
-    # matched basis: -4 - 15 = -19, matched proceeds: 4.5 + 12 = 16.5,
-    # p_l: 16.5 - 19 = -2.5, basis: -6 + -9 = -15
+    # matched basis: 4 + 15 = 19, matched proceeds: 4.5 + 12 = 16.5,
+    # p_l: 16.5 - 19 = -2.5, basis: 6 + 9 = 15
     expected_summary_df = DataFrame({
       "asset": [Asset.BTC, Asset.LTC],
-      "costs": [Decimal(-340), Decimal(-19)],
+      "costs": [Decimal(340), Decimal(19)],
       "proceeds": [Decimal(370), Decimal("16.5")],
       "profit and loss": [Decimal(30), Decimal("-2.5")],
-      "remaining basis": [Decimal(-290), Decimal(-15)]
+      "remaining basis": [Decimal(290), Decimal(15)]
     })
     summary_path = PATH + SUMMARY
     summary_index = False
@@ -239,7 +242,7 @@ class TestWriteOutput(TestCase):
       "costs": [Decimal(0)],
       "proceeds": [Decimal(0)],
       "profit and loss": [Decimal(0)],
-      "remaining basis": [Decimal(-290)]
+      "remaining basis": [Decimal(290)]
     })
     summary_path = PATH + SUMMARY
     summary_index = False

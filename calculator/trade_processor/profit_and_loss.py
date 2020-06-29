@@ -5,7 +5,7 @@ from typing import List
 from pandas import Series
 
 from calculator.converters import USD_ROUNDER
-from calculator.format import ID, PAIR, TOTAL_IN_USD, SIZE, USD_PER_BTC, SIDE, \
+from calculator.format import ID, PAIR, VALUE_IN_USD, SIZE, USD_PER_BTC, SIDE, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE, TOTAL
 from calculator.trade_types import Pair, Asset, Side
 from calculator.auto_id_incrementer import AutoIdIncrementer
@@ -15,8 +15,8 @@ INVALID_SIZE_MESSAGE = "Sizes must be the same: {}, {}\n" \
                         "Proceeds:\n{}"
 INVALID_MATCH = lambda b, b_size, p, p_size: INVALID_SIZE_MESSAGE.format(
   b_size, p_size,
-  b[[PAIR, SIDE, SIZE, USD_PER_BTC, TOTAL_IN_USD]],
-  p[[PAIR, SIDE, SIZE, USD_PER_BTC, TOTAL_IN_USD]]
+  b[[PAIR, SIDE, SIZE, USD_PER_BTC, VALUE_IN_USD]],
+  p[[PAIR, SIDE, SIZE, USD_PER_BTC, VALUE_IN_USD]]
 )
 INVALID_TRADE_MESSAGE = "Invalid basis {} trade for {}:\n{}"
 INVALID_TRADE = lambda a, b, t: INVALID_TRADE_MESSAGE.format(t, a, b)
@@ -54,7 +54,7 @@ class ProfitAndLoss:
     self.proceeds_id: int = proceeds[ID]
     self.proceeds_pair: Pair = proceeds[PAIR]
     self.proceeds: Decimal = self.get_value(proceeds)
-    self.profit_and_loss: Decimal = self.proceeds + self.basis
+    self.profit_and_loss: Decimal = self.proceeds - self.basis
     self.taxed_profit_and_loss: Decimal = self.profit_and_loss
 
   def get_series(self) -> Series:
@@ -103,7 +103,7 @@ class ProfitAndLoss:
     self.unwashed_size -= adj_size
     self.taxed_profit_and_loss -= adj_loss
     if self.asset == wash_trade[PAIR].get_base_asset():
-      wash_trade[ADJUSTED_VALUE] += adj_loss
+      wash_trade[ADJUSTED_VALUE] -= adj_loss
     else:
       # BTC is the asset and quote asset. for example is in terms of LTC-BTC and
       # total, total in usd and adjusted value will all be in context of LTC not
@@ -124,13 +124,7 @@ class ProfitAndLoss:
         self.profit_and_loss < 0 < self.unwashed_size)
 
   def get_value(self, trade: Series):
-    if self.asset == trade[PAIR].get_base_asset():
-      return trade[TOTAL_IN_USD]
-    else:
-      # if Asset is BTC and pair is LTC-BTC total in usd will be in the context
-      # of +/- usd with respect to LTC not BTC. This swaps the value in order
-      # to respect the value of usd in respect to BTC.
-      return - trade[TOTAL_IN_USD]
+    return trade[VALUE_IN_USD]
 
   @staticmethod
   def get_basis_size(asset: Asset, basis: Series) -> Decimal:

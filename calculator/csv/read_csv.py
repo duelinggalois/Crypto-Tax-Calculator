@@ -6,7 +6,7 @@ from pandas import DataFrame
 
 from calculator.api.exchange_api import ExchangeApi
 from calculator.converters import CONVERTERS, USD_ROUNDER
-from calculator.format import USD_PER_BTC, TOTAL_IN_USD, PAIR, TOTAL, TIME, \
+from calculator.format import USD_PER_BTC, VALUE_IN_USD, PAIR, TOTAL, TIME, \
   TIME_STRING_FORMAT
 from calculator.trade_types import Asset
 
@@ -14,14 +14,17 @@ exchange_api = ExchangeApi()
 
 
 class ReadCsv:
+  log_negative = True
 
   @classmethod
   def read(cls, path) -> DataFrame:
     df: DataFrame = pd.read_csv(path, converters=CONVERTERS)
     kvs = df.keys().values
     name = path.split("/")[-1]
-    if USD_PER_BTC in kvs and TOTAL_IN_USD in kvs:
+    if USD_PER_BTC in kvs and VALUE_IN_USD in kvs:
       print("STEP 1: loaded all needed data for {}.".format(name))
+      df[VALUE_IN_USD] = df[VALUE_IN_USD] \
+        .apply(lambda x: ReadCsv.abs_value_in_usd(x))
       return df
 
     print(
@@ -30,7 +33,6 @@ class ReadCsv:
       "quote trades.".format(name)
     )
     df = cls.update_df_with_usd_per_btc(df)
-
     # write csv with usd per btc and total in usd.
     df.to_csv(path, index=False, date_format=TIME_STRING_FORMAT)
     return df
@@ -58,12 +60,19 @@ class ReadCsv:
       lapsed, lapsed / trade_count))
     df[USD_PER_BTC] = Decimal("NaN")
     df.loc[usd_not_base_mask, USD_PER_BTC] = usd_per_btc
-    df.loc[usd_not_base_mask, TOTAL_IN_USD] = df.loc[
-      usd_not_base_mask, TOTAL
-    ] * df.loc[
-      usd_not_base_mask, USD_PER_BTC
-    ]
-    df.loc[~usd_not_base_mask, TOTAL_IN_USD] = df.loc[
-      ~usd_not_base_mask, TOTAL]
-    df[TOTAL_IN_USD].apply(USD_ROUNDER)
+    df.loc[usd_not_base_mask, VALUE_IN_USD] = abs(
+      df.loc[usd_not_base_mask, TOTAL] * df.loc[usd_not_base_mask, USD_PER_BTC]
+    )
+    df.loc[~usd_not_base_mask, VALUE_IN_USD] = abs(
+      df.loc[~usd_not_base_mask, TOTAL])
+    df[VALUE_IN_USD].apply(USD_ROUNDER)
     return df
+
+  @classmethod
+  def abs_value_in_usd(cls, x):
+    if x < 0:
+      if cls.log_negative:
+        cls.log_negative = False
+        print("Warning: Found negative value in USD")
+      return -x
+    return x

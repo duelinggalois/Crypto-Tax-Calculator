@@ -7,7 +7,7 @@ from pandas import DataFrame, Series
 
 from calculator.format import ADJUSTED_VALUE, TIME_STRING_FORMAT, BASIS_SFX, \
   COSTS_SFX, PROCEEDS_SFX, PROFIT_AND_LOSS_SFX, SUMMARY, COMBINED_BASIS, \
-  TOTAL_IN_USD
+  VALUE_IN_USD
 from calculator.trade_processor.profit_and_loss import Entry
 from calculator.trade_types import Asset
 
@@ -43,7 +43,7 @@ class WriteOutput:
         # TODO: this case should be tested.
         summary["remaining basis"].append(b_df[ADJUSTED_VALUE].sum())
       else:
-        summary["remaining basis"].append(b_df[TOTAL_IN_USD].sum())
+        summary["remaining basis"].append(b_df[VALUE_IN_USD].sum())
       combined_basis.append(b_df)
 
     self.asset = asset

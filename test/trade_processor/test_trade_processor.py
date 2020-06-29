@@ -9,7 +9,7 @@ from pandas.testing import assert_series_equal
 import pytz
 
 from calculator.format import (
-  ID, TOTAL_IN_USD, USD_PER_BTC,
+  ID, VALUE_IN_USD, USD_PER_BTC,
   TOTAL, P_F_T_UNIT, FEE, SIZE_UNIT,
   SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE)
 from calculator.trade_types import Pair, Asset, Side
@@ -488,7 +488,7 @@ class TestTradeProcessor(TestCase):
     # Loss would be 8080 - 6930 = 1150
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"), Decimal("-1150"))
     # basis should be adjusted to -6969
-    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-6969"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("6969"))
 
   def test_wash_trade_noop_over_thirty_days_before(self):
     """
@@ -517,7 +517,7 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("-1150"))
     # basis should be adjusted to -6969
-    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-6969"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("6969"))
 
   def test_wash_trade_disabled_by_default(self):
     """
@@ -536,7 +536,7 @@ class TestTradeProcessor(TestCase):
 
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("-1150"), Decimal("-1150"))
-    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-6969"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("6969"))
 
   def test_wash_deques_do_not_exists_by_default(self):
     processor = ProcessorBuilder().build_processor()
@@ -565,7 +565,7 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("-1150"), Decimal("0"))
     # basis should be adjusted from -6969 to -6969 - 1150 = -8119
-    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-8119"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("8119"))
 
   def test_wash_trade_under_thirty_days_before(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
@@ -587,7 +587,7 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("-1150"), Decimal("0"))
     # basis should be adjusted from -6969 to -6969 - 1150 = -8119
-    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-8119"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("8119"))
 
   def test_wash_against_self(self):
     time_incrementer.set(datetime(2019, 1, 1, 1, tzinfo=pytz.UTC))
@@ -631,12 +631,11 @@ class TestTradeProcessor(TestCase):
     entry_two = p_l.popleft()
 
     self.verify_fixed_columns(wash, entry_one.costs)
-    self.verify_basis(wash, Decimal("-5000"), Decimal("-5500"))
+    self.verify_basis(wash, Decimal("5000"), Decimal("5500"))
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("1000"), Decimal("500"))
     self.verify_p_and_l(entry_two.profit_and_loss, Decimal("1"),
                         Decimal("-500"), Decimal("0"))
-
 
   def test_wash_trades_smaller_size_than_loss_after(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
@@ -660,13 +659,13 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("-1150"), Decimal("-230"))
     # total is 0.2 * 6900 + 13.8 = 1393.8
-    self.assertEqual(basis_one[TOTAL_IN_USD], Decimal("-1393.8"))
+    self.assertEqual(basis_one[VALUE_IN_USD], Decimal("1393.8"))
     # adjusted 1393.8 + (1150 * 0.2) = 1623.8
-    self.assertEqual(basis_one[ADJUSTED_VALUE], Decimal("-1623.8"))
+    self.assertEqual(basis_one[ADJUSTED_VALUE], Decimal("1623.8"))
     # total is 0.6 * 7000 + 42 = 4242
-    self.assertEqual(basis_two[TOTAL_IN_USD], Decimal("-4242"))
+    self.assertEqual(basis_two[VALUE_IN_USD], Decimal("4242"))
     # adjusted 4242 + (1150 * 0.6) = 4932
-    self.assertEqual(basis_two[ADJUSTED_VALUE], Decimal("-4932"))
+    self.assertEqual(basis_two[ADJUSTED_VALUE], Decimal("4932"))
 
   def test_wash_trades_smaller_size_than_loss_before(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
@@ -690,13 +689,13 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(entry_one.profit_and_loss, Decimal("1"),
                         Decimal("-1150"), Decimal("-230"))
     # total is 0.2 * 6900 + 13.8 = 1393.8
-    self.assertEqual(basis_one[TOTAL_IN_USD], Decimal("-1393.8"))
+    self.assertEqual(basis_one[VALUE_IN_USD], Decimal("1393.8"))
     # adjusted 1393.8 + (1150 * 0.2) = 1623.8
-    self.assertEqual(basis_one[ADJUSTED_VALUE], Decimal("-1623.8"))
+    self.assertEqual(basis_one[ADJUSTED_VALUE], Decimal("1623.8"))
     # total is 0.6 * 7000 + 42 = 4242
-    self.assertEqual(basis_two[TOTAL_IN_USD], Decimal("-4242"))
+    self.assertEqual(basis_two[VALUE_IN_USD], Decimal("4242"))
     # adjusted 4242 + (1150 * 0.6) = 4932
-    self.assertEqual(basis_two[ADJUSTED_VALUE], Decimal("-4932"))
+    self.assertEqual(basis_two[ADJUSTED_VALUE], Decimal("4932"))
 
   def test_wash_trade_larger_size_than_trade_after(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
@@ -716,10 +715,10 @@ class TestTradeProcessor(TestCase):
                         Decimal("-1150"), Decimal("0"))
     # total is 1.2 * 6900 + 82.8 = 8362.8
     # basis should have negative total
-    self.assertEqual(basis[TOTAL_IN_USD], Decimal("-8362.8"))
+    self.assertEqual(basis[VALUE_IN_USD], Decimal("8362.8"))
     # adjusted 8362.8 + 1150 = = 9512.8
     # basis should have negative total
-    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-9512.8"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("9512.8"))
 
   def test_wash_trade_larger_size_than_trade_before(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("8000"),
@@ -739,10 +738,10 @@ class TestTradeProcessor(TestCase):
                         Decimal("-1150"), Decimal("0"))
     # total is 1.2 * 6900 + 82.8 = 8362.8
     # basis should have negative total
-    self.assertEqual(basis[TOTAL_IN_USD], Decimal("-8362.8"))
+    self.assertEqual(basis[VALUE_IN_USD], Decimal("8362.8"))
     # adjusted 8362.8 + 1150 = = 9512.8
     # basis should have negative total
-    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("-9512.8"))
+    self.assertEqual(basis[ADJUSTED_VALUE], Decimal("9512.8"))
 
   def test_wash_trade_larger_size_washes_next_loss(self):
     buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("9000"),
@@ -771,7 +770,7 @@ class TestTradeProcessor(TestCase):
     self.verify_p_and_l(entry_two.profit_and_loss, Decimal(".5"),
                         Decimal("-575"), Decimal("-287.5"))
     # basis should have negative total
-    self.verify_basis(basis, "-8711.25", "-11158.75")
+    self.verify_basis(basis, "8711.25", "11158.75")
 
   def test_mismatch_wash(self):
     test_helpers.exchange.set_btc_per_usd("6000")
@@ -850,7 +849,7 @@ class TestTradeProcessor(TestCase):
       self.assertEqual(p_and_l.taxed_profit_and_loss, expected_taxed_p_l)
 
   def verify_basis(self, basis, total_in_usd, adjusted_value):
-    self.assertEqual(basis[TOTAL_IN_USD], Decimal(total_in_usd))
+    self.assertEqual(basis[VALUE_IN_USD], Decimal(total_in_usd))
     self.assertEqual(basis[ADJUSTED_VALUE], Decimal(adjusted_value))
 
   @classmethod

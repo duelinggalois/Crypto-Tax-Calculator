@@ -207,8 +207,8 @@ class TestProfitAndLoss(TestCase):
     self.assertEqual(p_l.profit_and_loss, expected_loss)
     # Wash loss makes final p and l zero
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
-    # adjusted - 5050 - 1130
-    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("-6180"))
+    # adjusted 5050 + 1130
+    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("6180"))
 
   def test_small_wash_trade(self):
     basis = get_mock_trade(
@@ -226,8 +226,8 @@ class TestProfitAndLoss(TestCase):
     p_l.wash_loss(wash)
     # Wash loss -1130 / 4 = -282.5
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("-282.5"))
-    # adjust 5000 * 3/4 + 37.5 + 1130 * 3/4 = -847.50
-    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("-4635"))
+    # adjust 5000 * 3/4 + 37.5 + 1130 * 3/4 = 4635
+    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("4635"))
 
   def test_larger_trade_returns_rem_fraction(self):
     basis = get_mock_trade(
@@ -247,8 +247,8 @@ class TestProfitAndLoss(TestCase):
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
     # total - (1.2 * 5000 + 60) = -6060
     self.assertEqual(wash[TOTAL], Decimal("-6060"))
-    # - 6060 - 1130 = -7190
-    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("-7190"))
+    # 6060 + 1130 = 7190
+    self.assertEqual(wash[ADJUSTED_VALUE], Decimal("7190"))
 
   def test_multiple_washes(self):
     basis = get_mock_trade(
@@ -276,10 +276,10 @@ class TestProfitAndLoss(TestCase):
     p_l.wash_loss(wash_three)
     self.assertEqual(p_l.taxed_profit_and_loss, Decimal("0"))
     # Wash loss (0.25 * 5000) + (0.25 * 1130) = 1532.5
-    self.assertEqual(wash_one[ADJUSTED_VALUE], Decimal("-1532.5"))
+    self.assertEqual(wash_one[ADJUSTED_VALUE], Decimal("1532.5"))
     # Wash loss (0.5 * 5000) + (0.5 * 1130) = 3065
-    self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("-3065"))
-    self.assertEqual(wash_three[ADJUSTED_VALUE], Decimal("-1532.5"))
+    self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("3065"))
+    self.assertEqual(wash_three[ADJUSTED_VALUE], Decimal("1532.5"))
 
   def test_mismatched_pair(self):
     basis = get_mock_trade(
@@ -372,8 +372,8 @@ class TestProfitAndLoss(TestCase):
     # redundant to test results
     p_l.wash_loss(wash_one)
     p_l.wash_loss(wash_two)
-    # adj 2500 + (0.25 * 1130) =
-    self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("-2782.5"))
+    # adj 2500 + (0.25 * 1130) = 2782.5
+    self.assertEqual(wash_two[ADJUSTED_VALUE], Decimal("2782.5"))
 
   def assert_basis_raises_exception(self, asset, basis, proceeds):
     with self.assertRaises(ValueError) as context:
