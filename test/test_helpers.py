@@ -9,7 +9,7 @@ from pandas import Series, DataFrame
 from calculator.auto_id_incrementer import AutoIdIncrementer
 from calculator.converters import USD_ROUNDER
 from calculator.format import ID, PAIR, SIDE, TIME, SIZE, \
-  SIZE_UNIT, PRICE, FEE, P_F_T_UNIT, TOTAL, USD_PER_BTC, TOTAL_IN_USD, \
+  SIZE_UNIT, PRICE, FEE, P_F_T_UNIT, TOTAL, USD_PER_BTC, VALUE_IN_USD, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
 from calculator.trade_types import Pair, Asset, Side
 
@@ -68,9 +68,9 @@ def get_trade(
   total = - price * size - fee if Side.BUY == side else price * size -fee
   if quote == Asset.USD:
     usd_per_btc = Decimal("nan")
-    value = total
+    value = abs(total)
   elif quote == Asset.BTC:
-    value = USD_ROUNDER(total * usd_per_btc)
+    value = abs(USD_ROUNDER(total * usd_per_btc))
   else:
     raise ValueError("Pair not supported: " + str(product))
 
@@ -86,7 +86,7 @@ def get_trade(
     P_F_T_UNIT: quote,
     TOTAL: total,
     USD_PER_BTC: usd_per_btc,
-    TOTAL_IN_USD: value
+    VALUE_IN_USD: value
   })
   if wash:
     trade_series[ADJUSTED_VALUE] = value

@@ -3,7 +3,7 @@ from datetime import datetime
 
 from calculator.trade_types import Pair, Side, Asset
 from calculator.format import TIME_STRING_FORMAT, SIZE, PAIR, SIDE, TIME, \
-  PRICE, FEE, TOTAL, USD_PER_BTC, TOTAL_IN_USD, SIZE_UNIT, P_F_T_UNIT
+  PRICE, FEE, TOTAL, USD_PER_BTC, VALUE_IN_USD, SIZE_UNIT, P_F_T_UNIT
 
 
 USD_CONVERTER = lambda x: USD_ROUNDER(Decimal(x)) if x != "" else Decimal("NaN")
@@ -24,7 +24,7 @@ CONVERTERS = {
   FEE: TEN_PLACE_CONVERTER,
   TOTAL: TEN_PLACE_CONVERTER,
   USD_PER_BTC: USD_CONVERTER,
-  TOTAL_IN_USD: USD_CONVERTER,
+  VALUE_IN_USD: USD_CONVERTER,
   SIZE_UNIT: SIZE_UNIT_CONVERTER,
   P_F_T_UNIT: SIZE_UNIT_CONVERTER
 }

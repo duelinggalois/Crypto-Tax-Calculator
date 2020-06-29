@@ -11,7 +11,7 @@ P_F_T_UNIT = "price/fee/total unit"
 TOTAL = "total"
 # Default headers for output csv
 USD_PER_BTC = "usd per btc"
-TOTAL_IN_USD = "total in usd"
+VALUE_IN_USD = "value in usd"
 ADJUSTED_VALUE = "adjusted value"
 ADJUSTED_SIZE = "adjusted size"
 WASH_P_L_IDS = "wash p and l ids"
