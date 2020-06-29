@@ -15,15 +15,16 @@ from calculator.trade_types import Pair, Asset, Side
 
 
 def get_trade_for_pair(pair: Pair, side: Side, time: datetime,
-                       size: Decimal, price: Decimal, fee: Decimal):
+                       size: Decimal, price: Decimal, fee: Decimal,
+                       wash: bool = False):
   id = id_incrementer.get_id_and_increment()
   if pair.get_quote_asset() == Asset.USD:
     return get_trade(
-      id, pair, side, time, size, price, fee, Decimal("NaN")
+      id, pair, side, time, size, price, fee, Decimal("NaN"), wash
     )
   else:
     return get_trade(
-      id, pair, side, time, size, price, fee, exchange.get_btc_per_usd()
+      id, pair, side, time, size, price, fee, exchange.get_btc_per_usd(), wash
     )
 
 
@@ -35,7 +36,8 @@ def get_trade(
     size: Decimal = Decimal("0.00768977"),
     price: Decimal = Decimal("0.0575"),
     fee: Decimal = Decimal("0"),
-    usd_per_btc: Decimal = Decimal("13815.04")
+    usd_per_btc: Decimal = Decimal("13815.04"),
+    wash: bool = False
 ) -> Series:
   """
   Default values added for both example and ease to create a trade
@@ -47,6 +49,7 @@ def get_trade(
   :param price: Decimal
   :param fee: Decimal
   :param usd_per_btc: Decimal
+  :param wash: bool
 
   size_unit: ETH
   total: 0.00442161775
@@ -71,7 +74,7 @@ def get_trade(
   else:
     raise ValueError("Pair not supported: " + str(product))
 
-  return Series({
+  trade_series = Series({
     ID: trade_id,
     PAIR: product,
     SIDE: side,
@@ -83,11 +86,13 @@ def get_trade(
     P_F_T_UNIT: quote,
     TOTAL: total,
     USD_PER_BTC: usd_per_btc,
-    TOTAL_IN_USD: value,
-    ADJUSTED_VALUE: value,
-    ADJUSTED_SIZE: Decimal(0),
-    WASH_P_L_IDS: []
+    TOTAL_IN_USD: value
   })
+  if wash:
+    trade_series[ADJUSTED_VALUE] = value
+    trade_series[ADJUSTED_SIZE] = Decimal(0)
+    trade_series[WASH_P_L_IDS] = []
+  return trade_series
 
 
 class AutoTimeIncrementer:

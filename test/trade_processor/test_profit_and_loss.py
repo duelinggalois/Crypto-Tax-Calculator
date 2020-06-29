@@ -1,4 +1,3 @@
-import unittest
 from decimal import Decimal
 from unittest import TestCase
 
@@ -401,4 +400,5 @@ class TestProfitAndLoss(TestCase):
 def get_mock_trade(pair: Pair, side: Side, size: Decimal, price: Decimal,
                    fee: Decimal):
   return get_trade_for_pair(
-    pair, side, time_incrementer.get_time_and_increment(), size, price, fee)
+    pair, side, time_incrementer.get_time_and_increment(), size, price, fee,
+    True)
