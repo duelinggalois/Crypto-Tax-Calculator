@@ -24,12 +24,13 @@ def calculate_all(path, cb_name, trade_name, track_wash):
   cost_basis_df = ReadCsv.read("{}{}".format(path, cb_name))
   trades_df = ReadCsv.read("{}{}".format(path, trade_name))
 
-  cost_basis_df[ADJUSTED_VALUE] = cost_basis_df[TOTAL_IN_USD]
-  cost_basis_df[ADJUSTED_SIZE] = Decimal(0)
-  cost_basis_df[WASH_P_L_IDS] = pd.Series([] for i in range(len(trades_df)))
-  trades_df[ADJUSTED_VALUE] = trades_df[TOTAL_IN_USD]
-  trades_df[ADJUSTED_SIZE] = Decimal(0)
-  trades_df[WASH_P_L_IDS] = pd.Series([] for i in range(len(trades_df)))
+  if track_wash:
+    cost_basis_df[ADJUSTED_VALUE] = cost_basis_df[TOTAL_IN_USD]
+    cost_basis_df[ADJUSTED_SIZE] = Decimal(0)
+    cost_basis_df[WASH_P_L_IDS] = pd.Series([] for i in range(len(trades_df)))
+    trades_df[ADJUSTED_VALUE] = trades_df[TOTAL_IN_USD]
+    trades_df[ADJUSTED_SIZE] = Decimal(0)
+    trades_df[WASH_P_L_IDS] = pd.Series([] for i in range(len(trades_df)))
   assets = get_assets(cost_basis_df, trades_df)
   print(
     "STEP 2: Analyzing trades for the following products\n{}".format(assets)

@@ -4,10 +4,9 @@ from typing import List
 
 from pandas import Series
 
-from calculator.converters import USD_CONVERTER, USD_ROUNDER
-from calculator.format import ID, PAIR, TOTAL_IN_USD, SIZE, \
-  USD_PER_BTC, SIDE, PRICE, FEE, ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE, \
-  TOTAL
+from calculator.converters import USD_ROUNDER
+from calculator.format import ID, PAIR, TOTAL_IN_USD, SIZE, USD_PER_BTC, SIDE, \
+  ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE, TOTAL
 from calculator.trade_types import Pair, Asset, Side
 from calculator.auto_id_incrementer import AutoIdIncrementer
 

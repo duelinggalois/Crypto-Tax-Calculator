@@ -33,19 +33,20 @@ BASIS_DF = DataFrame(
     SIZE_UNIT: [Asset.BTC, Asset.LTC, Asset.ETH],
     PRICE: [Dec(1000), Dec(100), Dec("0.05")],
     FEE: [Dec("0.01"), Dec(0), Dec("0.0005")],
-    TOTAL: [Dec("0.99"), Dec(2), Dec("0.0495")],
+    TOTAL: [Dec("-1.01"), Dec(-2), Dec("0.0495")],
     P_F_T_UNIT: [Asset.USD, Asset.USD, Asset.USD]
   }
 )
 BASIS_DF_W_USD = BASIS_DF.copy()
 BASIS_DF_W_USD[TIME] = [TIME4, TIME5, TIME6]
 BASIS_DF_W_USD[USD_PER_BTC] = [Dec("nan"), Dec(1100), Dec(1200)]
-BASIS_DF_W_USD[TOTAL_IN_USD] =[
-  tot * usdper if not usdper.is_nan() else tot for tot, usdper in zip(
+BASIS_DF_W_USD[TOTAL_IN_USD] = [
+  total * usd_per if not usd_per.is_nan() else total for total, usd_per in zip(
     BASIS_DF_W_USD[TOTAL], BASIS_DF_W_USD[USD_PER_BTC]
   )]
 RAISE_IF_CALLED = lambda *x, **y: exec(
   "raise(AssertionError('Method should not be called'))")
+
 
 def patch_read_csv(path, *args, **kwargs):
   if "converters" not in kwargs or kwargs["converters"] != CONVERTERS:

@@ -13,7 +13,6 @@ from calculator.trade_types import Asset, Side
 from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
 
 VARIABLE_COLUMNS = [SIZE, FEE, TOTAL]
-VARIABLE_USD_COLUMNS = [TOTAL_IN_USD, ADJUSTED_VALUE]
 
 
 class TradeProcessor:
@@ -29,6 +28,10 @@ class TradeProcessor:
       self.wash_before_loss_check: Deque[Series, ...] = basis_queue.copy()
       self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
       self.entries_by_basis_id: dict[int, Entry] = {}
+      # wash tracking adds additional columns that need to be changed.
+      self.variable_usd_columns = [TOTAL_IN_USD, ADJUSTED_VALUE]
+    else:
+      self.variable_usd_columns = [TOTAL_IN_USD]
 
   def handle_trade(self, trade: Series):
 
@@ -143,17 +146,16 @@ class TradeProcessor:
       size -= p_l_size
     return size
 
-  @staticmethod
-  def spit_trade_to_match(trade: Series, factor_size: Decimal,
+  def spit_trade_to_match(self, trade: Series, factor_size: Decimal,
                           total_size: Decimal) -> Tuple[Series, Series]:
 
     trade_portion = Fraction(factor_size) / Fraction(total_size)
     remainder: Series = trade.copy()
-    trade[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] *= trade_portion.numerator
-    trade[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] /= trade_portion.denominator
+    trade[VARIABLE_COLUMNS + self.variable_usd_columns] *= trade_portion.numerator
+    trade[VARIABLE_COLUMNS + self.variable_usd_columns] /= trade_portion.denominator
     trade[VARIABLE_COLUMNS] = trade[VARIABLE_COLUMNS].apply(trade[PAIR].quantize)
-    trade[VARIABLE_USD_COLUMNS] = trade[VARIABLE_USD_COLUMNS].apply(USD_ROUNDER)
-    remainder[VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS] -= trade[
-      VARIABLE_COLUMNS + VARIABLE_USD_COLUMNS]
+    trade[self.variable_usd_columns] = trade[self.variable_usd_columns].apply(USD_ROUNDER)
+    remainder[VARIABLE_COLUMNS + self.variable_usd_columns] -= trade[
+      VARIABLE_COLUMNS + self.variable_usd_columns]
     # remainder[VARIABLE_COLUMNS].apply(trade[PAIR].quantize)
     return trade, remainder

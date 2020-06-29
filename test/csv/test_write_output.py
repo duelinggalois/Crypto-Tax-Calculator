@@ -87,7 +87,7 @@ class TestWriteOutput(TestCase):
   @mock.patch.object(WriteOutput, "write_proceeds")
   @mock.patch.object(WriteOutput, "write_costs")
   @mock.patch.object(WriteOutput, "write_basis")
-  def test_write_output(self, write_basis, write_costs,
+  def test_write_outputs(self, write_basis, write_costs,
                         write_proceeds, write_profit_and_loss):
     self.basis_queue.append(BASIS_ONE)
     self.basis_queue.append(BASIS_TWO)
@@ -97,7 +97,7 @@ class TestWriteOutput(TestCase):
 
     self.validate_df_call(write_basis, DataFrame(self.basis_queue))
     self.validate_df_call(
-      write_costs, DataFrame(e.basis for e in self.entries))
+      write_costs, DataFrame(e.costs for e in self.entries))
     self.validate_df_call(
       write_proceeds, DataFrame(e.proceeds for e in self.entries))
     self.validate_df_call(
