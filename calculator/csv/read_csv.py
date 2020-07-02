@@ -65,7 +65,7 @@ class ReadCsv:
     )
     df.loc[~usd_not_base_mask, VALUE_IN_USD] = abs(
       df.loc[~usd_not_base_mask, TOTAL])
-    df[VALUE_IN_USD].apply(USD_ROUNDER)
+    df[VALUE_IN_USD] = df[VALUE_IN_USD].apply(USD_ROUNDER)
     return df
 
   @classmethod
