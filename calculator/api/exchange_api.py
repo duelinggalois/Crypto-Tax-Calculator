@@ -33,7 +33,7 @@ class ExchangeApi:
     self, data: dict, iso_time: datetime) -> Decimal:
 
     # Issue could be a rate limited by api
-    if data["message"] == "Slow rate limit exceeded":
+    if "limit exceeded" in data["message"]:
       print("API rate limit exceeded, pausing for 1 seconds")
       time.sleep(1)
       return self.get_close(iso_time)
