@@ -5,7 +5,7 @@ python:
   - "3.8"
 install:
   - pipenv install
-scrpit:
-  - pipenv run nosetests --with-coverage --cover-package=calculator --cover-inclusive
+script:
+  - pipenv run nosetests --with-coverage --cover-package=calculator --cover-inclusive --cover-xml
 after_success:
   - codecov
