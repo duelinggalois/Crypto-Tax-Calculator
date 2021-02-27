@@ -19,6 +19,7 @@ class Asset(Enum):
   ETH = "ETH"
   LTC = "LTC"
   BCH = "BCH"
+  USDC = "USDC"
 
   def __repr__(self):
     return self.value
