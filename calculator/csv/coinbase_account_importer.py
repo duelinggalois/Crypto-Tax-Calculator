@@ -8,10 +8,11 @@ from calculator.trade_types import Asset
 
 CONVERTERS = {
   "time": TIME_CONVERTER,
-  "amount":  TEN_PLACE_CONVERTER,
-  "balance":  TEN_PLACE_CONVERTER,
+  "amount": TEN_PLACE_CONVERTER,
+  "balance": TEN_PLACE_CONVERTER,
   "amount/balanceunit": SIZE_UNIT_CONVERTER
 }
+
 
 class CoinbaseAccountImporter(ImportCvs):
   @staticmethod
@@ -19,7 +20,8 @@ class CoinbaseAccountImporter(ImportCvs):
     df: DataFrame = pd.read_csv(
       path,
       converters=CONVERTERS,
-      usecols=["portfolio", "type", "time", "amount", "balance", "amount/balanceunit"])
+      usecols=["portfolio", "type", "time", "amount", "balance",
+               "amount/balanceunit"])
     df.columns = ["portfolio", "type", "time", "amount", "balance", "unit"]
-    return df.loc[((df["type"] != "withdrawal") | (df["unit"] != Asset.USD )) &
+    return df.loc[((df["type"] != "withdrawal") | (df["unit"] != Asset.USD)) &
                   (~df["type"].isin({"deposit", "match", "fee"}))]

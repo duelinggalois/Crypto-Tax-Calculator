@@ -9,6 +9,7 @@ from calculator.trade_types import Asset
 
 csv_path = "/csv"
 
+
 class TestCoinbaseAccountImporter(TestCase):
 
   def setUp(self):
@@ -36,7 +37,7 @@ class TestCoinbaseAccountImporter(TestCase):
       (self.result["type"] == "conversion") &
       ((self.result["unit"] == Asset.USD) & (self.result["amount"] < 0) |
        (self.result["unit"] == Asset.USDC) & (self.result["amount"] > 0)
-      )]
+       )]
     self.assertEqual(len(conversions), 2, "should have two rows")
     self.assertEqual(conversions["amount"].iloc[0], -500,
                      "conversion is for -500 USD.")
@@ -56,7 +57,8 @@ class TestCoinbaseAccountImporter(TestCase):
     self.assertEqual(len(conversions), 2)
     self.assertEqual(conversions["amount"].iloc[0], -58)
     self.assertEqual(conversions["unit"].iloc[0], Asset.USDC)
-    self.assertEqual(conversions["amount"].iloc[0], -conversions["amount"].iloc[1],
+    self.assertEqual(conversions["amount"].iloc[0],
+                     -conversions["amount"].iloc[1],
                      "Should have opposite values")
     self.assertEquals(conversions["unit"].iloc[1], Asset.USD)
     self.assertEqual(conversions["time"].iloc[0], conversions["time"].iloc[1],
