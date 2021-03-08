@@ -1,0 +1,2 @@
+trade id,product,side,created at,size,size unit,price,fee,total,price/fee/total unit,usd per btc,value in usd,portfolio
+100,BTC-USD,BUY,2018-06-29T16:40:46.214000Z,1,BTC,6000,0,-6000,BTC,NaN,6000,

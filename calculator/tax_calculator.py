@@ -7,19 +7,16 @@ from typing import Set
 import pandas as pd
 from pandas import DataFrame
 
-from calculator.api.exchange_api import ExchangeApi
 from calculator.format import (
   PAIR, TIME, SIDE, VALUE_IN_USD, ADJUSTED_VALUE,
   WASH_P_L_IDS, ADJUSTED_SIZE, SIZE_UNIT, P_F_T_UNIT)
 from calculator.csv.read_csv import ReadCsv
 from calculator.csv.write_output import WriteOutput
+from calculator.trade_processor.processor_factory import ProcessorFactoryImpl
 from calculator.trade_types import Asset, Side
-from calculator.trade_processor.trade_processor import TradeProcessor
-
-exchange_api = ExchangeApi()
 
 
-def calculate_all(path, cb_name, trade_name, track_wash):
+def calculate_profit_and_loss(path, cb_name, trade_name, track_wash):
   cost_basis_df = ReadCsv.read("{}{}".format(path, cb_name))
   trades_df = ReadCsv.read("{}{}".format(path, trade_name))
 
@@ -38,41 +35,67 @@ def calculate_all(path, cb_name, trade_name, track_wash):
   if not os.path.isdir(output_path):
     os.mkdir(output_path)
   write_output = WriteOutput(output_path)
+  processor_factory = ProcessorFactoryImpl()
   for asset in assets:
     print("Starting to process {}".format(asset))
-    base = lambda a: a.get_base_asset()
-    quote = lambda a: a.get_quote_asset()
-    basis_df = cost_basis_df.loc[
-      (
-          (
-              (cost_basis_df[PAIR].apply(base) == asset) &
-              (cost_basis_df[SIDE] == Side.BUY)
-          ) | (
-              (cost_basis_df[PAIR].apply(quote) == asset) &
-              (cost_basis_df[SIDE] == Side.SELL)
-          )
-      )
-    ].sort_values(TIME)
-
-    trades_for_asset_df = trades_df.loc[
-      (trades_df[PAIR].apply(quote) == asset) |
-      (trades_df[PAIR].apply(base) == asset)
-      ].sort_values(TIME)
-
-    processor = calculate_tax_profit_and_loss(
-      asset, basis_df, trades_for_asset_df, track_wash)
-
-    print("Finished processing {}, saving results  csv format".format(asset))
-    write_output.write(asset, processor.basis_queue, processor.entries)
+    handle_asset(
+      processor_factory, asset, cost_basis_df, trades_df, write_output,
+      track_wash)
 
   # Write summary
   write_output.write_summary()
 
 
-def calculate_tax_profit_and_loss(
-      asset, basis_df, asset_df: pd.DataFrame, track_wash):
+def get_assets(basis_df: DataFrame, trades_df: DataFrame) -> Set[Asset]:
+  assets: Set[Asset] = set(basis_df[SIZE_UNIT].unique())
+  assets.update(trades_df[SIZE_UNIT].unique())
+  assets.update(trades_df[P_F_T_UNIT])
+  if Asset.USD in assets:
+    assets.remove(Asset.USD)
+  return assets
+
+
+def handle_asset(processor_factory, asset, cost_basis_df, trades_df,
+                 write_output, track_wash=False):
+  basis_df = filter_basis_by_asset(asset, cost_basis_df)
+  trades_for_asset_df = filter_trades_by_asset(asset, trades_df)
   basis_queue = deque(j for i, j in basis_df.iterrows())
-  processor = TradeProcessor(asset, basis_queue, track_wash=track_wash)
+  processor = processor_factory.new_processor(
+    asset, basis_queue, track_wash=track_wash)
+  timed_trade_handler(
+    processor, trades_for_asset_df)
+  print("Finished processing {}, saving results  csv format".format(asset))
+  write_output.write(asset, basis_queue, processor.get_entries())
+
+
+base = lambda pair: pair.get_base_asset()
+quote = lambda pair: pair.get_quote_asset()
+
+
+def filter_basis_by_asset(asset, cost_basis_df):
+  basis_df = cost_basis_df.loc[
+    (
+            (
+                    (cost_basis_df[PAIR].apply(base) == asset) &
+                    (cost_basis_df[SIDE] == Side.BUY)
+            ) | (
+                    (cost_basis_df[PAIR].apply(quote) == asset) &
+                    (cost_basis_df[SIDE] == Side.SELL)
+            )
+    )
+  ].sort_values(TIME)
+  return basis_df
+
+
+def filter_trades_by_asset(asset, trades_df):
+  trades_for_asset_df = trades_df.loc[
+    (trades_df[PAIR].apply(quote) == asset) |
+    (trades_df[PAIR].apply(base) == asset)
+    ].sort_values(TIME)
+  return trades_for_asset_df
+
+
+def timed_trade_handler(processor, asset_df: pd.DataFrame):
   trade_count = len(asset_df)
   progress_len = 50
   count = 0
@@ -89,12 +112,3 @@ def calculate_tax_profit_and_loss(
     print("\n\nProcessed trades in {} seconds {} per trade\n".format(
       lapsed, lapsed / trade_count))
   return processor
-
-
-def get_assets(basis_df: DataFrame, trades_df: DataFrame) -> Set[Asset]:
-  assets: Set[Asset] = set(basis_df[SIZE_UNIT].unique())
-  assets.update(trades_df[SIZE_UNIT].unique())
-  assets.update(trades_df[P_F_T_UNIT])
-  if Asset.USD in assets:
-    assets.remove(Asset.USD)
-  return assets

@@ -1,7 +1,7 @@
 from collections import deque
 from decimal import Decimal
 from fractions import Fraction
-from typing import Deque, Tuple
+from typing import Deque, Tuple, Dict
 
 from datetime import datetime
 from pandas import Series
@@ -15,19 +15,41 @@ from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
 VARIABLE_COLUMNS = [SIZE, FEE, TOTAL]
 
 
-class TradeProcessor:
+class TradeProcessor:  # pragma: no cover
+  """
+  Abstract base class for handling a series of trades for a given asset. Should
+  be initialized with a list of trades that define the basis for the asset.
+  """
+  def handle_trade(self, trade: Series) -> None:
+    """
+    Handles the given trade by matching it with the appropriate basis.
+    :param trade:
+    :return:
+    """
+    raise NotImplementedError("Interface method not implemented.")
+
+  def get_entries(self) -> Deque[Entry]:
+    """
+    return resulting entries from all trades. Should be called after all trades
+    have been passed to handle_trade.
+    :return: a deque of all resulting entries
+    """
+    raise NotImplementedError("Interface method not implemented.")
+
+
+class TradeProcessorImpl(TradeProcessor):
 
   def __init__(
     self, asset: Asset, basis_queue: Deque[Series], track_wash=False):
 
     self.asset: Asset = asset
-    self.basis_queue: Deque[Series, ...] = basis_queue
-    self.entries: Deque[Entry, ...] = deque()
+    self.basis_queue: Deque[Series] = basis_queue
+    self.entries: Deque[Entry] = deque()
     self.track_wash = track_wash
     if track_wash:
-      self.wash_before_loss_check: Deque[Series, ...] = basis_queue.copy()
+      self.wash_before_loss_check: Deque[Series] = basis_queue.copy()
       self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
-      self.entries_by_basis_id: dict[int, Entry] = {}
+      self.entries_by_basis_id: Dict[int, Entry] = {}
       # wash tracking adds additional columns that need to be changed.
       self.variable_usd_columns = [VALUE_IN_USD, ADJUSTED_VALUE]
     else:
@@ -40,6 +62,9 @@ class TradeProcessor:
 
     else:
       self.handle_basis_trade(trade)
+
+  def get_entries(self) -> Deque[Entry]:
+    return self.entries
 
   def is_proceed_trade(self, trade: Series) -> bool:
     product = trade[PAIR]
@@ -149,11 +174,14 @@ class TradeProcessor:
 
     trade_portion = Fraction(factor_size) / Fraction(total_size)
     remainder: Series = trade.copy()
-    trade[VARIABLE_COLUMNS + self.variable_usd_columns] *= trade_portion.numerator
-    trade[VARIABLE_COLUMNS + self.variable_usd_columns] /= trade_portion.denominator
-    trade[VARIABLE_COLUMNS] = trade[VARIABLE_COLUMNS].apply(trade[PAIR].quantize)
-    trade[self.variable_usd_columns] = trade[self.variable_usd_columns].apply(USD_ROUNDER)
+    trade[VARIABLE_COLUMNS + self.variable_usd_columns] *= \
+      trade_portion.numerator
+    trade[VARIABLE_COLUMNS + self.variable_usd_columns] /= \
+      trade_portion.denominator
+    trade[VARIABLE_COLUMNS] = trade[VARIABLE_COLUMNS]\
+      .apply(trade[PAIR].quantize)
+    trade[self.variable_usd_columns] = trade[self.variable_usd_columns]\
+      .apply(USD_ROUNDER)
     remainder[VARIABLE_COLUMNS + self.variable_usd_columns] -= trade[
       VARIABLE_COLUMNS + self.variable_usd_columns]
-    # remainder[VARIABLE_COLUMNS].apply(trade[PAIR].quantize)
     return trade, remainder

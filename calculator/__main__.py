@@ -1,10 +1,10 @@
 import argparse
-from calculator.tax_calculator import calculate_all
+from calculator.tax_calculator import calculate_profit_and_loss
 
 
 def main():
   args = parse_command_line()
-  calculate_all(args.path, args.basis, args.fills, args.track_wash)
+  calculate_profit_and_loss(args.path, args.basis, args.fills, args.track_wash)
 
 
 def parse_command_line():
