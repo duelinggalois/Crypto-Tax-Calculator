@@ -15,7 +15,7 @@ from calculator.trade_processor.profit_and_loss import Entry
 from calculator.csv.write_output import WriteOutput
 from calculator.trade_types import Pair, Side, Asset
 from test.test_helpers import get_trade_for_pair, time_incrementer, \
-  VerifyOutput, PASS_IF_CALLED
+  VerifyOutput, NOOP_IF_CALLED
 
 TIME_ONE = time_incrementer.get_time_and_increment(0, 1)
 TIME_TWO = time_incrementer.get_time_and_increment(0, 1)
@@ -177,10 +177,10 @@ class TestWriteOutput(TestCase):
       [PATH, ASSET.value, "_", PROFIT_AND_LOSS_SFX]), False)
 
   @mock.patch(MOCK_TO_CSV_PATH, new=verify_output.get_stub_to_csv())
-  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_proceeds", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_costs", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_basis", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_proceeds", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_costs", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_basis", new=NOOP_IF_CALLED)
   def test_write_outputs(self):
     """
     PASS_IF_CALLED used to ensure data is not written, methods are tested in
@@ -228,10 +228,10 @@ class TestWriteOutput(TestCase):
     )
 
   @mock.patch(MOCK_TO_CSV_PATH, new=verify_output.get_stub_to_csv())
-  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_proceeds", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_costs", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_basis", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_proceeds", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_costs", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_basis", new=NOOP_IF_CALLED)
   def test_write_empty_p_l(self):
     self.basis_queue.append(BASIS_ONE)
     self.basis_queue.append(BASIS_TWO)

@@ -6,7 +6,7 @@ import calculator
 
 class TestMain(TestCase):
 
-  @mock.patch("calculator.__main__.calculate_all")
+  @mock.patch("calculator.__main__.calculate_profit_and_loss")
   @mock.patch("calculator.__main__.argparse._sys")
   def test_main(self, mock_sys: MagicMock, mock_calc_all: MagicMock):
     script = "/path/of/running/script/discarded/by/argparse"
@@ -21,7 +21,7 @@ class TestMain(TestCase):
       call(path, basis, fills, False)
     ])
 
-  @mock.patch("calculator.__main__.calculate_all")
+  @mock.patch("calculator.__main__.calculate_profit_and_loss")
   @mock.patch("calculator.__main__.argparse._sys")
   def test_main_with_wash(self, mock_sys: MagicMock, mock_calc_all: MagicMock):
     script = "/path/of/running/script/discarded/by/argparse"

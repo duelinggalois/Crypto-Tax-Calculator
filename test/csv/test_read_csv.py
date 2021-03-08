@@ -14,7 +14,7 @@ from calculator.format import ID, PAIR, SIDE, TIME, SIZE, SIZE_UNIT, PRICE, \
   FEE, P_F_T_UNIT, USD_PER_BTC, VALUE_IN_USD, TOTAL, TIME_STRING_FORMAT
 from calculator.csv.read_csv import ReadCsv
 from calculator.trade_types import Pair, Side, Asset
-from test.test_helpers import time_incrementer, PASS_IF_CALLED
+from test.test_helpers import time_incrementer, NOOP_IF_CALLED
 
 time_incrementer.set(datetime(2019, 10, 1))
 TIME1 = time_incrementer.get_time_and_increment(1, 1)
@@ -85,7 +85,7 @@ class TestReadCsv(TestCase):
 
   @mock.patch.object(pd, "read_csv", new=patch_read_csv)
   @mock.patch.object(ExchangeApi, "get_close", new=patch_get_close)
-  @mock.patch.object(time, "sleep", new=PASS_IF_CALLED)
+  @mock.patch.object(time, "sleep", new=NOOP_IF_CALLED)
   @mock.patch.object(DataFrame, "to_csv")
   def test_read_basis_without_usd_per_btc(self, to_csv: MagicMock):
     path = "/path/to/basis.csv"
@@ -98,7 +98,7 @@ class TestReadCsv(TestCase):
 
   @mock.patch.object(pd, "read_csv", new=patch_read_csv)
   @mock.patch.object(ExchangeApi, "get_close", new=patch_get_close)
-  @mock.patch.object(time, "sleep", new=PASS_IF_CALLED)
+  @mock.patch.object(time, "sleep", new=NOOP_IF_CALLED)
   @mock.patch.object(DataFrame, "to_csv")
   def test_read_negative_values(self, to_csv: MagicMock):
     assert_frame_equal(

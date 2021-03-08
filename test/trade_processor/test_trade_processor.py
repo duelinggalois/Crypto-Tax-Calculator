@@ -14,7 +14,7 @@ from calculator.format import (
   SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE)
 from calculator.trade_types import Pair, Asset, Side
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, Entry
-from calculator.trade_processor.trade_processor import TradeProcessor
+from calculator.trade_processor.trade_processor import TradeProcessorImpl
 from test import test_helpers
 from test.test_helpers import get_trade_for_pair, time_incrementer, exchange
 
@@ -799,7 +799,7 @@ class TestTradeProcessor(TestCase):
     self.assertEqual(len(processor.wash_before_loss_check), 0)
 
     b_q = processor.basis_queue
-    p_l = processor.entries
+    p_l = processor.get_entries()
     self.assertEqual(len(b_q), 2)
     self.assertEqual(len(p_l), 2)
     entry = p_l.popleft()
@@ -893,9 +893,9 @@ class ProcessorBuilder:
 
   def build(self) -> Tuple[Deque[Series], Deque[Entry]]:
     processor = self.build_processor()
-    return processor.basis_queue, processor.entries
+    return processor.basis_queue, processor.get_entries()
 
-  def build_processor(self) -> TradeProcessor:
+  def build_processor(self) -> TradeProcessorImpl:
     processor = self.get_processor(
       self.asset, self.track_wash_enabled, *self.basis_trades)
     self.processor = processor
@@ -905,9 +905,9 @@ class ProcessorBuilder:
 
   @staticmethod
   def get_processor(
-      asset: Asset, track_wash: bool, *buys: Series) -> TradeProcessor:
+      asset: Asset, track_wash: bool, *buys: Series) -> TradeProcessorImpl:
     basis_queue = deque()
     for buy in buys:
       basis_queue.append(buy)
-    trade_processor = TradeProcessor(asset, basis_queue, track_wash=track_wash)
+    trade_processor = TradeProcessorImpl(asset, basis_queue, track_wash=track_wash)
     return trade_processor

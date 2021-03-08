@@ -6,17 +6,14 @@ from pandas import DataFrame, Timestamp
 
 from calculator.csv.coinbase_account_importer import CoinbaseAccountImporter
 from calculator.trade_types import Asset
-
-csv_path = "/csv"
+from test.test_helpers import get_test_csv_directory
 
 
 class TestCoinbaseAccountImporter(TestCase):
 
   def setUp(self):
-    path: str = os.path.dirname(os.path.abspath(__file__))
-    # in an ide, path can contain /csv already, with nosetests it does not.
-    # path += csv_path if path[-4:] != csv_path else ""
-    path += "/test_files/test_cb_account_export.csv"
+    # path: str = os.path.dirname(os.path.abspath(__file__))[:-4]  # remove /csv
+    path = get_test_csv_directory() + "/test_cb_account_export.csv"
     self.result: DataFrame = CoinbaseAccountImporter.import_path(path)
 
   def test_import_path_check_columns(self):

@@ -56,9 +56,9 @@ the crucial points to change are noted.
   the sum of the sizes of each of those buys would be the account balance at the
   start of the year). Files should both be formatted with headers seen in the
   [sample_format](sample_format.csv).
-* For isolating basis for asset withdrwas see the [test csv](test/csv/README.md) 
+* For isolating basis for asset withdrwas see the [test csv](test/README.md) 
   for more information on the needed account exports. 
 * `$ pipenv run python -m calculator /path/to/folder/ basis_trade_file.csv trade_file.csv`
-  Wash loss trading is not tracked by by default but can be tracked and losses 
+  Wash loss trading is not tracked by default but can be tracked and losses 
   invalidated and added to basis of the trade that washes the loss by passing
   `--track-wash` to the script.
