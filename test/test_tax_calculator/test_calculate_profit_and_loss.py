@@ -44,11 +44,10 @@ class TestTaxCalculatorCalculateProfitAndLoss(TestCase):
     writer.write.assert_called_once()
     call = writer.write.call_args
     self.assertEqual(call[0][0], asset)
-    # truth values of Series is ambiguous
-    # self.assertEqual(call[0][1], deque(j for i, j in self.basis.iterrows()))
+    # truth values of Series is ambiguous using string instead
+    self.assertEqual(str(call[0][1]),
+                     str(deque(j for i, j in self.basis.iterrows())))
     self.assertEqual(call[0][2], self.processors[0].get_entries())
-
-
 
   def get_stub_processor_factory(self):
     self.processors = []

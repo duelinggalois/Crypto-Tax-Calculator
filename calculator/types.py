@@ -3,10 +3,7 @@ from datetime import datetime
 from decimal import Decimal, ROUND_HALF_EVEN
 from enum import Enum
 from typing import Deque, Collection
-
 from pandas import Series, DataFrame
-
-from calculator.csv.import_cvs import ImportCsv
 
 
 class Side(Enum):
@@ -73,7 +70,9 @@ class EventType(Enum):
 
 
 class Event(ABC):
+  @abstractmethod
   def get_time(self) -> datetime: ...
+  @abstractmethod
   def get_type(self) -> EventType: ...
 
 
@@ -81,23 +80,36 @@ class Transfer(Event, ABC):
   def get_type(self):
     return EventType.TRANSFER
 
+  @abstractmethod
   def get_asset(self) -> Asset: ...
+  @abstractmethod
   def to_account(self) -> str: ...
+  @abstractmethod
   def from_account(self) -> str: ...
 
 
 class Trade(Event, ABC):
+
   def get_type(self):
     return EventType.TRADE
 
+  @abstractmethod
   def get_quote_asset(self) -> Asset: ...
+  @abstractmethod
   def get_base_asset(self) -> Asset: ...
+  @abstractmethod
   def get_series(self) -> Series: ...
 
 
 class Transformer(ABC):
   @staticmethod
+  @abstractmethod
   def transform(frame: DataFrame) -> Collection[Event]: ...
+
+
+class Loader(ABC):
+  @abstractmethod
+  def load(self) -> Collection[Event]: ...
 
 
 class Sorter(ABC):
@@ -106,14 +118,35 @@ class Sorter(ABC):
   dataframe to a list of Events, sorts the events by datetime and returns a
   deque of all events.
   """
-  def load_data(self, path: str, importer: ImportCsv, transformer: Transformer):
+  def load_data(self: str, loader: Loader):
     ...
 
   def sort(self) -> Deque[Event]: ...
 
 
+class Entry:
+  """
+  temp to fix dependencies
+  """
+  pass
+
+
+class Result(ABC):
+  DEFAULT = "default"
+
+  def get_account(self) -> str:
+    return self.DEFAULT
+
+  @abstractmethod
+  def get_asset(self) -> Asset: ...
+  @abstractmethod
+  def get_basis_df(self) -> DataFrame: ...
+  @abstractmethod
+  def get_proceeds(self) -> Deque[Entry]: ...
+
+
 class Handler(ABC):
-  def handle_event(self, event: Event):
+  def handle(self, event: Event):
     if isinstance(event, Trade):
       self.handle_trade(event)
     elif isinstance(event, Transfer):
@@ -125,3 +158,12 @@ class Handler(ABC):
   def handle_trade(self, trade: Trade): ...
   @abstractmethod
   def handle_transfer(self, transfer: Transfer): ...
+  @abstractmethod
+  def get_results(self) -> Collection[Result]: ...
+
+
+class Writer(ABC):
+  @abstractmethod
+  def write(self, result: Result): ...
+  @abstractmethod
+  def write_summery(self): ...
