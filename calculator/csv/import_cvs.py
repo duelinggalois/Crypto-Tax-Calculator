@@ -5,7 +5,7 @@ from typing import Dict, Callable, Any
 from pandas import DataFrame
 
 
-class ImportCvs:  # pragma: no cover
+class ImportCsv:  # pragma: no cover
 
   @staticmethod
   def import_path(path: str) -> DataFrame:
@@ -15,5 +15,3 @@ class ImportCvs:  # pragma: no cover
     :return: dataframe
     """
     raise NotImplementedError("Interface method not implemented.")
-
-

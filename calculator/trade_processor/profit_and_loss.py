@@ -7,7 +7,7 @@ from pandas import Series
 from calculator.converters import USD_ROUNDER
 from calculator.format import ID, PAIR, VALUE_IN_USD, SIZE, USD_PER_BTC, SIDE, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE, TOTAL
-from calculator.trade_types import Pair, Asset, Side
+from calculator.types import Pair, Asset, Side
 from calculator.auto_id_incrementer import AutoIdIncrementer
 
 INVALID_SIZE_MESSAGE = "Sizes must be the same: {}, {}\n" \

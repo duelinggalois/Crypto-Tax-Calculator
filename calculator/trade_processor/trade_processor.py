@@ -9,7 +9,7 @@ from pandas import Series
 from calculator.converters import USD_ROUNDER
 from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME,\
   VALUE_IN_USD, ADJUSTED_VALUE, ID, ADJUSTED_SIZE
-from calculator.trade_types import Asset, Side
+from calculator.types import Asset, Side
 from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
 
 VARIABLE_COLUMNS = [SIZE, FEE, TOTAL]

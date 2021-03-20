@@ -12,7 +12,7 @@ from calculator.converters import USD_ROUNDER
 from calculator.format import ID, PAIR, SIDE, TIME, SIZE, \
   SIZE_UNIT, PRICE, FEE, P_F_T_UNIT, TOTAL, USD_PER_BTC, VALUE_IN_USD, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
-from calculator.trade_types import Pair, Asset, Side
+from calculator.types import Pair, Asset, Side
 
 
 NOOP_IF_CALLED: Callable = lambda *x, **y: None

@@ -1,16 +1,11 @@
 from unittest import TestCase
-from unittest.mock import Mock
 
-import pandas as pd
-from pandas import DataFrame, Series
+from pandas import DataFrame
 
 from calculator import tax_calculator
-from calculator.converters import CONVERTERS
-from calculator.csv.write_output import WriteOutput
 from calculator.format import ID, PAIR, SIZE_UNIT, P_F_T_UNIT
-from calculator.trade_processor.trade_processor import TradeProcessor
-from calculator.trade_types import Pair, Asset
-from test.test_helpers import id_incrementer, get_test_csv_directory
+from calculator.types import Pair, Asset
+from test.test_helpers import id_incrementer
 
 
 class TestTaxCalculatorGetAsset(TestCase):

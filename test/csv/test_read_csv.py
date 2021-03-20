@@ -12,8 +12,8 @@ from calculator.api.exchange_api import ExchangeApi
 from calculator.converters import CONVERTERS
 from calculator.format import ID, PAIR, SIDE, TIME, SIZE, SIZE_UNIT, PRICE, \
   FEE, P_F_T_UNIT, USD_PER_BTC, VALUE_IN_USD, TOTAL, TIME_STRING_FORMAT
-from calculator.csv.read_csv import ReadCsv
-from calculator.trade_types import Pair, Side, Asset
+from calculator.csv.coinbase_fill_importer import CoinbaseFillImporter
+from calculator.types import Pair, Side, Asset
 from test.test_helpers import time_incrementer, NOOP_IF_CALLED
 
 time_incrementer.set(datetime(2019, 10, 1))
@@ -79,7 +79,7 @@ class TestReadCsv(TestCase):
   @mock.patch.object(time, "sleep", new=RAISE_IF_CALLED)
   def test_read_basis_with_usd_per_btc(self):
     assert_frame_equal(
-      ReadCsv.read("/path/to/basis_and_usd.csv"), BASIS_DF_W_USD,
+      CoinbaseFillImporter.import_path("/path/to/basis_and_usd.csv"), BASIS_DF_W_USD,
       check_exact=True
     )
 
@@ -89,7 +89,7 @@ class TestReadCsv(TestCase):
   @mock.patch.object(DataFrame, "to_csv")
   def test_read_basis_without_usd_per_btc(self, to_csv: MagicMock):
     path = "/path/to/basis.csv"
-    left: DataFrame = ReadCsv.read(path)
+    left: DataFrame = CoinbaseFillImporter.import_path(path)
     right: DataFrame = BASIS_DF_W_USD.copy()
     right[TIME] = [TIME1, TIME2, TIME3]
     self.assert_frame_equal_with_nans(left, right)
@@ -102,7 +102,7 @@ class TestReadCsv(TestCase):
   @mock.patch.object(DataFrame, "to_csv")
   def test_read_negative_values(self, to_csv: MagicMock):
     assert_frame_equal(
-      ReadCsv.read("/path/to/negative_basis.csv"), BASIS_DF_W_USD,
+      CoinbaseFillImporter.import_path("/path/to/negative_basis.csv"), BASIS_DF_W_USD,
       check_exact=True
     )
 

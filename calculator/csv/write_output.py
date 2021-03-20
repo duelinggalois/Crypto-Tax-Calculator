@@ -9,7 +9,7 @@ from calculator.format import ADJUSTED_VALUE, TIME_STRING_FORMAT, BASIS_SFX, \
   COSTS_SFX, PROCEEDS_SFX, PROFIT_AND_LOSS_SFX, SUMMARY, COMBINED_BASIS, \
   VALUE_IN_USD
 from calculator.trade_processor.profit_and_loss import Entry
-from calculator.trade_types import Asset
+from calculator.types import Asset
 
 
 class WriteOutput:

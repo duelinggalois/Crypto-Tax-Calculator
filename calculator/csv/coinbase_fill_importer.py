@@ -6,25 +6,26 @@ from pandas import DataFrame
 
 from calculator.api.exchange_api import ExchangeApi
 from calculator.converters import CONVERTERS, USD_ROUNDER
+from calculator.csv.import_cvs import ImportCsv
 from calculator.format import USD_PER_BTC, VALUE_IN_USD, PAIR, TOTAL, TIME, \
   TIME_STRING_FORMAT
-from calculator.trade_types import Asset
+from calculator.types import Asset
 
 exchange_api = ExchangeApi()
 
 
-class ReadCsv:
+class CoinbaseFillImporter(ImportCsv):
   log_negative = True
 
-  @classmethod
-  def read(cls, path) -> DataFrame:
+  @staticmethod
+  def import_path(path) -> DataFrame:
     df: DataFrame = pd.read_csv(path, converters=CONVERTERS)
     kvs = df.keys().values
     name = path.split("/")[-1]
     if USD_PER_BTC in kvs and VALUE_IN_USD in kvs:
       print("STEP 1: loaded all needed data for {}.".format(name))
       df[VALUE_IN_USD] = df[VALUE_IN_USD] \
-        .apply(lambda x: ReadCsv.abs_value_in_usd(x))
+        .apply(lambda x: CoinbaseFillImporter.abs_value_in_usd(x))
       return df
 
     print(
@@ -32,7 +33,7 @@ class ReadCsv:
       "requests per second so this will take over one minute per 90 non USD "
       "quote trades.".format(name)
     )
-    df = cls.update_df_with_usd_per_btc(df)
+    df = CoinbaseFillImporter.update_df_with_usd_per_btc(df)
     # write csv with usd per btc and total in usd.
     df.to_csv(path, index=False, date_format=TIME_STRING_FORMAT)
     return df

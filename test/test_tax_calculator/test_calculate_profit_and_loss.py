@@ -1,7 +1,7 @@
 from collections import deque
 from typing import Deque
 from unittest import TestCase
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import pandas as pd
 from pandas import DataFrame, Series
@@ -12,7 +12,7 @@ from calculator.csv.write_output import WriteOutput
 from calculator.trade_processor.processor_factory import ProcessorFactory
 from calculator.trade_processor.profit_and_loss import Entry
 from calculator.trade_processor.trade_processor import TradeProcessor
-from calculator.trade_types import Asset
+from calculator.types import Asset
 from test.test_helpers import get_test_csv_directory
 
 
