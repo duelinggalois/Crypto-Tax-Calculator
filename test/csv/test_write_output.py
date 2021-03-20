@@ -13,7 +13,7 @@ from calculator.format import TIME_STRING_FORMAT, BASIS_SFX, COSTS_SFX, \
   PROCEEDS_SFX, PROFIT_AND_LOSS_SFX, SUMMARY, COMBINED_BASIS
 from calculator.trade_processor.profit_and_loss import Entry
 from calculator.csv.write_output import WriteOutput
-from calculator.trade_types import Pair, Side, Asset
+from calculator.types import Pair, Side, Asset
 from test.test_helpers import get_trade_for_pair, time_incrementer, \
   VerifyOutput, NOOP_IF_CALLED
 

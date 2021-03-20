@@ -3,8 +3,8 @@ from pandas import DataFrame
 
 from calculator.converters import TIME_CONVERTER, TEN_PLACE_CONVERTER, \
   SIZE_UNIT_CONVERTER
-from calculator.csv.import_cvs import ImportCvs
-from calculator.trade_types import Asset
+from calculator.csv.import_cvs import ImportCsv
+from calculator.types import Asset
 
 CONVERTERS = {
   "time": TIME_CONVERTER,
@@ -14,7 +14,7 @@ CONVERTERS = {
 }
 
 
-class CoinbaseAccountImporter(ImportCvs):
+class CoinbaseAccountImporter(ImportCsv):
   @staticmethod
   def import_path(path: str) -> DataFrame:
     df: DataFrame = pd.read_csv(

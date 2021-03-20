@@ -6,7 +6,7 @@ from datetime import datetime
 
 from calculator.format import SIZE, PRICE, FEE, ADJUSTED_VALUE, ID, \
   WASH_P_L_IDS, TOTAL
-from calculator.trade_types import Pair, Asset, Side
+from calculator.types import Pair, Asset, Side
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, \
   INVALID_MATCH, INVALID_TRADE
 from test.test_helpers import get_trade_for_pair, \

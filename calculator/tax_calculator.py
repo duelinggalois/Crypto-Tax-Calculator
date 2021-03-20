@@ -10,15 +10,15 @@ from pandas import DataFrame
 from calculator.format import (
   PAIR, TIME, SIDE, VALUE_IN_USD, ADJUSTED_VALUE,
   WASH_P_L_IDS, ADJUSTED_SIZE, SIZE_UNIT, P_F_T_UNIT)
-from calculator.csv.read_csv import ReadCsv
+from calculator.csv.coinbase_fill_importer import CoinbaseFillImporter
 from calculator.csv.write_output import WriteOutput
 from calculator.trade_processor.processor_factory import ProcessorFactoryImpl
-from calculator.trade_types import Asset, Side
+from calculator.types import Asset, Side
 
 
 def calculate_profit_and_loss(path, cb_name, trade_name, track_wash):
-  cost_basis_df = ReadCsv.read("{}{}".format(path, cb_name))
-  trades_df = ReadCsv.read("{}{}".format(path, trade_name))
+  cost_basis_df = CoinbaseFillImporter.import_path("{}{}".format(path, cb_name))
+  trades_df = CoinbaseFillImporter.import_path("{}{}".format(path, trade_name))
 
   if track_wash:
     cost_basis_df[ADJUSTED_VALUE] = cost_basis_df[VALUE_IN_USD]

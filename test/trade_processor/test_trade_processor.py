@@ -12,7 +12,7 @@ from calculator.format import (
   ID, VALUE_IN_USD, USD_PER_BTC,
   TOTAL, P_F_T_UNIT, FEE, SIZE_UNIT,
   SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE)
-from calculator.trade_types import Pair, Asset, Side
+from calculator.types import Pair, Asset, Side
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, Entry
 from calculator.trade_processor.trade_processor import TradeProcessorImpl
 from test import test_helpers

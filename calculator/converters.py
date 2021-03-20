@@ -1,7 +1,7 @@
 from decimal import Decimal, ROUND_UP
 from datetime import datetime
 
-from calculator.trade_types import Pair, Side, Asset
+from calculator.types import Pair, Side, Asset
 from calculator.format import TIME_STRING_FORMAT, SIZE, PAIR, SIDE, TIME, \
   PRICE, FEE, TOTAL, USD_PER_BTC, VALUE_IN_USD, SIZE_UNIT, P_F_T_UNIT
 

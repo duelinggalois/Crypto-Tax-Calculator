@@ -6,7 +6,7 @@ import requests
 
 from calculator.converters import USD_CONVERTER
 from calculator.format import TIME_STRING_FORMAT
-from calculator.trade_types import Pair
+from calculator.types import Pair
 
 BASE_URL = "https://api.pro.coinbase.com/products/"
 

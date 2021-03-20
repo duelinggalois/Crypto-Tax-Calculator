@@ -5,7 +5,7 @@ from unittest import TestCase
 from pandas import DataFrame, Timestamp
 
 from calculator.csv.coinbase_account_importer import CoinbaseAccountImporter
-from calculator.trade_types import Asset
+from calculator.types import Asset
 from test.test_helpers import get_test_csv_directory
 
 

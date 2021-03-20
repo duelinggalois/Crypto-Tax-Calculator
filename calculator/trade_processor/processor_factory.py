@@ -4,7 +4,7 @@ from pandas import Series
 
 from calculator.trade_processor.trade_processor import TradeProcessor, \
   TradeProcessorImpl
-from calculator.trade_types import Asset
+from calculator.types import Asset
 
 
 class ProcessorFactory:  # pragma: no cover
