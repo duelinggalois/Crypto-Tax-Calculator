@@ -86,6 +86,8 @@ class Transfer(Event, ABC):
   def to_account(self) -> str: ...
   @abstractmethod
   def from_account(self) -> str: ...
+  @abstractmethod
+  def get_size(self) -> Decimal: ...
 
 
 class Trade(Event, ABC):
@@ -93,6 +95,8 @@ class Trade(Event, ABC):
   def get_type(self):
     return EventType.TRADE
 
+  @abstractmethod
+  def get_account(self) -> str: ...
   @abstractmethod
   def get_quote_asset(self) -> Asset: ...
   @abstractmethod
@@ -118,34 +122,42 @@ class Sorter(ABC):
   dataframe to a list of Events, sorts the events by datetime and returns a
   deque of all events.
   """
-  def load_data(self: str, loader: Loader):
-    ...
-
+  def load_data(self: str, loader: Loader): ...
   def sort(self) -> Deque[Event]: ...
 
 
-class Entry:
+class Entry(ABC):
   """
-  temp to fix dependencies
+  Class to hold basis and proceeds trades.
   """
-  pass
+
+  def __init__(self, asset: Asset, basis: Series, proceeds: Series):
+    self.asset = asset
+    self.costs = basis
+    self.proceeds = proceeds
+
+  def get_asset(self):
+    return self.asset
+
+  def get_costs(self):
+    return self.costs
+
+  def get_proceeds(self):
+    return self.proceeds
 
 
 class Result(ABC):
-  DEFAULT = "default"
-
-  def get_account(self) -> str:
-    return self.DEFAULT
-
+  @abstractmethod
+  def get_account(self) -> str: ...
   @abstractmethod
   def get_asset(self) -> Asset: ...
   @abstractmethod
-  def get_basis_df(self) -> DataFrame: ...
+  def get_basis_queue(self) -> Deque[Trade]: ...
   @abstractmethod
   def get_proceeds(self) -> Deque[Entry]: ...
 
 
-class Handler(ABC):
+class GeneralHandler(ABC):
   def handle(self, event: Event):
     if isinstance(event, Trade):
       self.handle_trade(event)
@@ -160,6 +172,25 @@ class Handler(ABC):
   def handle_transfer(self, transfer: Transfer): ...
   @abstractmethod
   def get_results(self) -> Collection[Result]: ...
+
+
+class BucketHandler(ABC):
+  """
+  Handles one asset for one account since assets can have multiple accounts.
+  """
+  @abstractmethod
+  def handle_trade(self, trade: Trade): ...
+  @abstractmethod
+  def withdraw_basis(self, size: Decimal) -> Deque[Trade]: ...
+  @abstractmethod
+  def deposit_basis(self, trades: Deque[Trade]): ...
+  @abstractmethod
+  def get_results(self) -> Result: ...
+
+
+class BucketFactory(ABC):
+  @abstractmethod
+  def get_bucket_handler(self, asset: Asset, account: str) -> BucketHandler: ...
 
 
 class Writer(ABC):

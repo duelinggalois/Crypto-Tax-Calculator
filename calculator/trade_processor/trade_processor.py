@@ -9,8 +9,9 @@ from pandas import Series
 from calculator.converters import USD_ROUNDER
 from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME,\
   VALUE_IN_USD, ADJUSTED_VALUE, ID, ADJUSTED_SIZE
-from calculator.types import Asset, Side
-from calculator.trade_processor.profit_and_loss import Entry, ProfitAndLoss
+from calculator.types import Asset, Side, Entry
+from calculator.trade_processor.profit_and_loss import ProfitAndLoss, \
+  get_p_and_l
 
 VARIABLE_COLUMNS = [SIZE, FEE, TOTAL]
 
@@ -52,6 +53,7 @@ class TradeProcessorImpl(TradeProcessor):
       self.entries_by_basis_id: Dict[int, Entry] = {}
       # wash tracking adds additional columns that need to be changed.
       self.variable_usd_columns = [VALUE_IN_USD, ADJUSTED_VALUE]
+      self.p_l_by_entry = {}
     else:
       self.variable_usd_columns = [VALUE_IN_USD]
 
@@ -100,8 +102,8 @@ class TradeProcessorImpl(TradeProcessor):
       if (self.track_wash and entry.costs[ID] in
             [b[ID] for b in self.wash_before_loss_check]):
         self.entries_by_basis_id[entry.costs[ID]] = entry
-      if self.track_wash and entry.profit_and_loss.is_loss():
-        p_l = entry.profit_and_loss
+      if self.track_wash and self._get_p_l(entry).is_loss():
+        p_l = self._get_p_l(entry)
         size = p_l.size
         while len(self.wash_before_loss_check) > 0 and size > 0:
           size = self.handle_wash_before_loss(entry, size)
@@ -146,10 +148,9 @@ class TradeProcessorImpl(TradeProcessor):
       if trade[ID] == entry.costs[ID]:
         return size
       wash_size = trade[SIZE]
-      adj_loss = entry.profit_and_loss.wash_loss(trade)
+      adj_loss = self._get_p_l(entry).wash_loss(trade)
       if trade[ID] in self.entries_by_basis_id.keys():
-        self.entries_by_basis_id[trade[ID]]\
-          .profit_and_loss\
+        self._get_p_l(self.entries_by_basis_id[trade[ID]])\
           .taxed_profit_and_loss += adj_loss
       size -= wash_size
       if 0 < self.determine_basis_size(trade) - trade[ADJUSTED_SIZE]:
@@ -185,3 +186,8 @@ class TradeProcessorImpl(TradeProcessor):
     remainder[VARIABLE_COLUMNS + self.variable_usd_columns] -= trade[
       VARIABLE_COLUMNS + self.variable_usd_columns]
     return trade, remainder
+
+  def _get_p_l(self, entry: Entry):
+    if entry not in self.p_l_by_entry:
+      self.p_l_by_entry[entry] = get_p_and_l(entry)
+    return self.p_l_by_entry[entry]

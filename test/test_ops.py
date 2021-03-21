@@ -1,13 +1,15 @@
+from collections import deque
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Collection, Deque, Set
 from unittest import TestCase
 
-from pandas import Series, DataFrame
+from pandas import Series
 
-from calculator.ops import SorterImpl, Operator
-from calculator.trade_processor.profit_and_loss import Entry
-from calculator.types import Event, EventType, Loader, Handler, Result, \
-  Transfer, Trade, Asset, Writer
+from calculator.ops import SorterImpl, Operator, GeneralHandlerImpl
+from calculator.types import Entry, Event, EventType, Loader, GeneralHandler, \
+  Result, \
+  Transfer, Trade, Asset, Writer, BucketFactory, BucketHandler
 
 time1 = datetime.now()
 time2 = time1 + timedelta(seconds=10)
@@ -67,6 +69,108 @@ class TestOperator(TestCase):
       {Asset.BTC, Asset.USDC, Asset.ETH, Asset.LTC, Asset.BCH})
 
 
+class TestHandlerImpl(TestCase):
+
+  def test_handle_trade(self):
+    trade = get_stub_trade(time1, Asset.BCH, Asset.USD)
+    handler = GeneralHandlerImpl(get_stub_bucket_factory())
+    handler.handle(trade)
+    results = handler.get_results()
+
+    self.assertEqual(len(results), 1)
+    result = results[0]
+    self.assertEqual(result.get_asset(), Asset.BCH)
+    basis_queue = result.get_basis_queue()
+    self.assertEqual(len(basis_queue), 1)
+    self.assertEqual(basis_queue.popleft(), trade)
+
+  def test_non_usd_trade(self):
+    trade = get_stub_trade(time1, Asset.BTC, Asset.ETH)
+
+    handler = GeneralHandlerImpl(get_stub_bucket_factory())
+    handler.handle(trade)
+    results = handler.get_results()
+
+    self.assertEqual(len(results), 2)
+    btc_result = [r for r in results if r.get_asset() == Asset.BTC][0]
+    eth_result = [r for r in results if r.get_asset() == Asset.ETH][0]
+
+    # Results would not match, but simple stubs pass everything to basis.
+    trade_deque = deque([trade])
+    self.assertEqual(btc_result.get_basis_queue(), trade_deque)
+    self.assertEqual(eth_result.get_basis_queue(), trade_deque)
+
+  def test_multiple_trades(self):
+    btc1 = get_stub_trade(time1, Asset.BTC, Asset.USD)
+    btc2 = get_stub_trade(time2, Asset.BTC, Asset.USDC)
+    eth1 = get_stub_trade(time3, Asset.ETH, Asset.USD)
+    eth2 = get_stub_trade(time4, Asset.ETH, Asset.BTC)
+
+    handler = GeneralHandlerImpl(get_stub_bucket_factory())
+    handler.handle(btc1)
+    handler.handle(btc2)
+    handler.handle(eth1)
+    handler.handle(eth2)
+    results = handler.get_results()
+
+    self.assertEqual(len(results), 3, "One each for BTC, USDC, & ETH")
+    result_dict = {r.get_asset(): r for r in results}
+
+    btc_result = result_dict[Asset.BTC]
+    eth_result = result_dict[Asset.ETH]
+    usd_result = result_dict[Asset.USDC]
+    # Results would not match, but simple stubs pass everything to basis.
+    self.assertEqual(btc_result.get_basis_queue(), deque([btc1, btc2, eth2]))
+    self.assertEqual(eth_result.get_basis_queue(), deque([eth1, eth2]))
+    self.assertEqual(usd_result.get_basis_queue(), deque([btc2]))
+
+  def test_handle_different_accounts(self):
+    trade1 = get_stub_trade(time1, Asset.BTC, Asset.USD, "one")
+    trade2 = get_stub_trade(time2, Asset.BTC, Asset.USD, "two")
+
+    handler = GeneralHandlerImpl(get_stub_bucket_factory())
+    handler.handle(trade1)
+    handler.handle(trade2)
+    results = handler.get_results()
+
+    self.assertEqual(len(results), 2, "Trades should be in separate results")
+    result_dict = {r.get_account(): r for r in results}
+
+    result1 = result_dict["one"]
+    result2 = result_dict["two"]
+    self.assertEqual(result1.get_asset(), Asset.BTC)
+    self.assertEqual(result2.get_asset(), Asset.BTC)
+    self.assertEqual(result1.get_basis_queue(), deque([trade1]))
+    self.assertEqual(result2.get_basis_queue(), deque([trade2]))
+
+  def test_transfer(self):
+    trade1 = get_stub_trade(time1, Asset.BTC, Asset.USD, "one")
+    trade2 = get_stub_trade(time2, Asset.BTC, Asset.USD, "one")
+    trade3 = get_stub_trade(time3, Asset.BTC, Asset.USD, "two")
+    transfer1 = get_stub_transfer(time4, Asset.BTC, "one", "two")
+    trade4 = get_stub_trade(time5, Asset.BTC, Asset.USD, "two")
+
+    handler = GeneralHandlerImpl(get_stub_bucket_factory())
+    handler.handle(trade1)
+    handler.handle(trade2)
+    handler.handle(trade3)
+    handler.handle(transfer1)
+    handler.handle(trade4)
+    results = handler.get_results()
+
+    self.assertEqual(len(results), 2)
+    result_dict = {r.get_account(): r for r in results}
+
+    result1 = result_dict["one"]
+    result2 = result_dict["two"]
+
+    self.assertEqual(result1.get_asset(), Asset.BTC)
+    self.assertEqual(result2.get_asset(), Asset.BTC)
+    # stub pulls from left and puts on right in deque
+    self.assertEqual(result1.get_basis_queue(), deque([trade2]))
+    self.assertEqual(result2.get_basis_queue(), deque([trade3, trade1, trade4]))
+
+
 def get_stub_loader(events: Collection[Event]):
   class StubLoader(Loader):
     def load(self) -> Collection[Event]:
@@ -75,7 +179,7 @@ def get_stub_loader(events: Collection[Event]):
 
 
 def get_stub_handler():
-  class StubHandler(Handler):
+  class StubHandler(GeneralHandler):
     results = []
 
     def handle_trade(self, trade: Trade):
@@ -96,17 +200,53 @@ def get_stub_handler():
   return StubHandler()
 
 
-def get_stub_results(asset):
+def get_stub_results(asset, account="default", basis=deque(), proceeds=deque()):
   class StubResults(Result):
+    def get_account(self):
+      return account
+
     def get_asset(self) -> Asset:
       return asset
 
-    def get_basis_df(self) -> DataFrame:
-      pass
+    def get_basis_queue(self) -> Deque[Trade]:
+      return basis
 
     def get_proceeds(self) -> Deque[Entry]:
-      pass
+      return proceeds
   return StubResults()
+
+
+def get_stub_bucket_handler(asset, account="default"):
+  basis = deque()
+  proceeds = deque()
+
+  class StubBucketHandler(BucketHandler):
+    """
+    handles each trade as one unit to avoid sizes.
+    """
+    def handle_trade(self, trade: Trade):
+      basis.append(trade)
+
+    def withdraw_basis(self, size: Decimal) -> Deque[Trade]:
+      return deque([basis.popleft()])
+
+    def deposit_basis(self, trades: Deque[Trade]):
+      # ignores order
+      {basis.append(v) for v in trades}
+
+    def get_results(self) -> Result:
+      return get_stub_results(asset, account, basis, proceeds)
+
+  return StubBucketHandler()
+
+
+def get_stub_bucket_factory():
+
+  class StubBucketFactory(BucketFactory):
+    def get_bucket_handler(self, asset: Asset, account) -> BucketHandler:
+      return get_stub_bucket_handler(asset, account)
+
+  return StubBucketFactory()
 
 
 def get_stub_writer(test_self):
@@ -129,8 +269,12 @@ def get_stub_writer(test_self):
 def get_stub_trade(
       time: datetime,
       base: Asset = Asset.BTC,
-      quote: Asset = Asset.USD) -> Event:
+      quote: Asset = Asset.USD,
+      account="default") -> Event:
   class StubTrade(Trade):
+
+    def get_account(self) -> str:
+      return account
 
     def get_quote_asset(self) -> Asset:
       return quote
@@ -147,19 +291,22 @@ def get_stub_trade(
   return StubTrade()
 
 
-def get_stub_transfer(time: datetime, asset=Asset.BTC) -> Transfer:
+def get_stub_transfer(time: datetime, asset=Asset.BTC, acc_from="from", to="to") -> Transfer:
   class StubTransfer(Transfer):
     def get_asset(self) -> Asset:
       return asset
 
     def to_account(self) -> str:
-      pass
+      return to
 
     def from_account(self) -> str:
-      pass
+      return acc_from
 
     def get_time(self) -> datetime:
       return time
+
+    def get_size(self) -> Decimal:
+      return Decimal("1")
 
   return StubTransfer()
 

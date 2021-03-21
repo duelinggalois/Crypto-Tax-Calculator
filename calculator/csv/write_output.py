@@ -8,8 +8,7 @@ from pandas import DataFrame, Series
 from calculator.format import ADJUSTED_VALUE, TIME_STRING_FORMAT, BASIS_SFX, \
   COSTS_SFX, PROCEEDS_SFX, PROFIT_AND_LOSS_SFX, SUMMARY, COMBINED_BASIS, \
   VALUE_IN_USD
-from calculator.trade_processor.profit_and_loss import Entry
-from calculator.types import Asset
+from calculator.types import Asset, Entry
 
 
 class WriteOutput:
@@ -29,7 +28,7 @@ class WriteOutput:
     self.combined_basis = []
 
   def write(self, asset: Asset, basis_queue: Deque[Series],
-            entries: Deque[Entry]):
+            entries: Deque[Entry], p_l_by_entry):
     def update_summary(pl_df, b_df, summary, combined_basis):
       self.summary["asset"].append(asset)
       has_values = len(pl_df) > 0
@@ -51,8 +50,7 @@ class WriteOutput:
     costs_df = DataFrame(e.costs for e in entries)
     proceeds_df = DataFrame(e.proceeds for e in entries)
     profit_and_loss_df = DataFrame(
-      e.profit_and_loss.get_series() for e in entries)
-
+      p_l_by_entry[e].get_series() for e in entries)
     update_summary(profit_and_loss_df, basis_df, self.summary,
                    self.combined_basis)
     self._write_for_asset(basis_df, costs_df, proceeds_df, profit_and_loss_df)

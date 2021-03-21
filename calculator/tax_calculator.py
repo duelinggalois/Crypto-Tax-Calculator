@@ -65,7 +65,8 @@ def handle_asset(processor_factory, asset, cost_basis_df, trades_df,
   timed_trade_handler(
     processor, trades_for_asset_df)
   print("Finished processing {}, saving results  csv format".format(asset))
-  write_output.write(asset, basis_queue, processor.get_entries())
+  write_output.write(
+    asset, basis_queue, processor.get_entries(), processor.p_l_by_entry)
 
 
 base = lambda pair: pair.get_base_asset()

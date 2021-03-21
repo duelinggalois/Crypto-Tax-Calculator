@@ -10,9 +10,8 @@ from calculator import tax_calculator
 from calculator.converters import CONVERTERS
 from calculator.csv.write_output import WriteOutput
 from calculator.trade_processor.processor_factory import ProcessorFactory
-from calculator.trade_processor.profit_and_loss import Entry
 from calculator.trade_processor.trade_processor import TradeProcessor
-from calculator.types import Asset
+from calculator.types import Asset, Entry
 from test.test_helpers import get_test_csv_directory
 
 
@@ -72,6 +71,7 @@ class TestTaxCalculatorCalculateProfitAndLoss(TestCase):
       count = 0
       trades = []
       entries = deque("test entry")
+      p_l_by_entry = {}
 
       def handle_trade(self, trade: Series) -> None:
         self.count += 1
