@@ -1,5 +1,6 @@
 from collections import deque
-from typing import Deque
+from decimal import Decimal
+from typing import Deque, List
 from unittest import TestCase
 from unittest.mock import Mock
 
@@ -68,6 +69,15 @@ class TestTaxCalculatorCalculateProfitAndLoss(TestCase):
 
   def get_stub_trade_processor(self):
     class StubProcessor(TradeProcessor):
+      def get_basis_queue(self) -> Deque[Series]:
+        pass
+
+      def withdraw_basis(self, size: Decimal) -> List[Series]:
+        pass
+
+      def deposit_basis(self, trade_series: List[Series]):
+        pass
+
       count = 0
       trades = []
       entries = deque("test entry")

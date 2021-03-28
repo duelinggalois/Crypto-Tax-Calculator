@@ -19,6 +19,7 @@ NOOP_IF_CALLED: Callable = lambda *x, **y: None
 FAIL_IF_CALLED: Callable = lambda *x, **y: exec(
   'raise(AssertionError("Fails when called"))')
 
+
 def get_trade_for_pair(pair: Pair, side: Side, time: datetime,
                        size: Decimal, price: Decimal, fee: Decimal,
                        wash: bool = False):

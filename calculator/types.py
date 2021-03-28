@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_EVEN
 from enum import Enum
-from typing import Deque, Collection
+from typing import Deque, Collection, List
 from pandas import Series, DataFrame
 
 
@@ -33,35 +33,42 @@ class Asset(Enum):
 
 
 class Pair(Enum):
-  BTC_USD = {"base": Asset.BTC, "quote": Asset.USD,
-             'base_increment': '0.0000000001'}
-  ETH_USD = {"base": Asset.ETH, "quote": Asset.USD,
-             'base_increment': '0.0000000001'}
-  ETH_BTC = {"base": Asset.ETH, "quote": Asset.BTC,
-             'base_increment': '0.0000000001'}
-  LTC_USD = {"base": Asset.LTC, "quote": Asset.USD,
-             'base_increment': '0.0000000001'}
-  LTC_BTC = {"base": Asset.LTC, "quote": Asset.BTC,
-             'base_increment': '0.0000000001'}
-  BCH_USD = {"base": Asset.BCH, "quote": Asset.USD,
-             'base_increment': '0.0000000001'}
-  BCH_BTC = {"base": Asset.BCH, "quote": Asset.BTC,
-             'base_increment': '0.0000000001'}
+  BTC_USD = (Asset.BTC, Asset.USD)
+  ETH_USD = (Asset.ETH, Asset.USD)
+  ETH_BTC = (Asset.ETH, Asset.BTC)
+  LTC_USD = (Asset.LTC, Asset.USD)
+  LTC_BTC = (Asset.LTC, Asset.BTC)
+  BCH_USD = (Asset.BCH, Asset.USD)
+  BCH_BTC = (Asset.BCH, Asset.BTC)
+  BTC_USDC = (Asset.BTC, Asset.USDC)
+  BTC_ETH = (Asset.BTC, Asset.ETH)
+  USDC_USD = (Asset.USDC, Asset.USD)
 
-  quantize = lambda self, x: x.quantize(Decimal(self.value["base_increment"]),
+  quantize = lambda self, x: x.quantize(Decimal(self.base_increment),
                                         rounding=ROUND_HALF_EVEN)
 
-  def get_quote_asset(self) -> Asset:
-    return self.value["quote"]
-
-  def get_base_asset(self) -> Asset:
-    return self.value["base"]
-
-  def __repr__(self):
-    return "<Pair: {}-{}>".format(self.value["base"], self.value["quote"])
+  def __init__(self, base: Asset, quote: Asset):
+    self.base = base
+    self.quote = quote
+    self.base_increment = '0.0000000001'
 
   def __str__(self):
-    return "{}-{}".format(self.value["base"], self.value["quote"])
+    return self.base + "_" + self.quote
+
+  def __repr__(self):
+    return "<" + self.__str__() + ">"
+
+  def get_quote_asset(self) -> Asset:
+    return self.quote
+
+  def get_base_asset(self) -> Asset:
+    return self.base
+
+  def __repr__(self):
+    return "<Pair: {}-{}>".format(self.base, self.quote)
+
+  def __str__(self):
+    return "{}-{}".format(self.base, self.quote)
 
 
 class EventType(Enum):
@@ -92,17 +99,42 @@ class Transfer(Event, ABC):
 
 class Trade(Event, ABC):
 
+  def __init__(
+    self,
+    time: datetime,
+    pair: Pair,
+    account: str,
+    series: Series):
+    self.time = time
+    self.pair = pair
+    self.account = account
+    self.series = series
+
+
   def get_type(self):
     return EventType.TRADE
 
-  @abstractmethod
-  def get_account(self) -> str: ...
-  @abstractmethod
-  def get_quote_asset(self) -> Asset: ...
-  @abstractmethod
-  def get_base_asset(self) -> Asset: ...
-  @abstractmethod
-  def get_series(self) -> Series: ...
+  def get_time(self) -> datetime:
+    return self.time
+
+  def get_account(self) -> str:
+    return self.account
+
+  def get_quote_asset(self) -> Asset:
+    return self.pair.get_quote_asset()
+
+  def get_base_asset(self) -> Asset:
+    return self.pair.get_base_asset()
+
+  def get_series(self) -> Series:
+    return self.series
+
+  def __repr__(self):
+    return "<{} {}>".format(self.__class__, self.__str__())
+
+  def __str__(self):
+    return "Trade\npair: {}\naccount: {}\ntime: {}\nseries:\n{}"\
+      .format(self.pair, self.account, self.time, self.series)
 
 
 class Transformer(ABC):
@@ -146,15 +178,27 @@ class Entry(ABC):
     return self.proceeds
 
 
-class Result(ABC):
-  @abstractmethod
-  def get_account(self) -> str: ...
-  @abstractmethod
-  def get_asset(self) -> Asset: ...
-  @abstractmethod
-  def get_basis_queue(self) -> Deque[Trade]: ...
-  @abstractmethod
-  def get_proceeds(self) -> Deque[Entry]: ...
+class Result:
+
+  def __init__(
+          self, asset: Asset, account: str, basis_queue: Deque[Series],
+          entries: Deque[Entry]):
+    self.asset = asset
+    self.account = account
+    self.basis_queue = basis_queue
+    self.entries = entries
+
+  def get_account(self) -> str:
+    return self.account
+
+  def get_asset(self) -> Asset:
+    return self.asset
+
+  def get_basis_queue(self) -> Deque[Series]:
+    return self.basis_queue
+
+  def get_entries(self) -> Deque[Entry]:
+    return self.entries
 
 
 class GeneralHandler(ABC):
@@ -181,11 +225,11 @@ class BucketHandler(ABC):
   @abstractmethod
   def handle_trade(self, trade: Trade): ...
   @abstractmethod
-  def withdraw_basis(self, size: Decimal) -> Deque[Trade]: ...
+  def withdraw_basis(self, size: Decimal) -> List[Trade]: ...
   @abstractmethod
-  def deposit_basis(self, trades: Deque[Trade]): ...
+  def deposit_basis(self, trades: List[Trade]): ...
   @abstractmethod
-  def get_results(self) -> Result: ...
+  def get_result(self) -> Result: ...
 
 
 class BucketFactory(ABC):
@@ -198,3 +242,35 @@ class Writer(ABC):
   def write(self, result: Result): ...
   @abstractmethod
   def write_summery(self): ...
+
+
+class TradeProcessor(ABC):  # pragma: no cover
+  """
+  Similar to the BucketHandler, but handles series from a dataframe, logic could
+  be pulled into the BucketHandler if the use of Series was replaced by adding
+  needed info to the Trade interface.
+  """
+  @abstractmethod
+  def handle_trade(self, trade: Series) -> None:
+    """
+    Handles the given trade by matching it with the appropriate basis.
+    :param trade:
+    :return:
+    """
+    ...
+
+  @abstractmethod
+  def get_entries(self) -> Deque[Entry]:
+    """
+    return resulting entries from all trades. Should be called after all trades
+    have been passed to handle_trade.
+    :return: a deque of all resulting entries
+    """
+    ...
+
+  @abstractmethod
+  def get_basis_queue(self) -> Deque[Series]: ...
+  @abstractmethod
+  def withdraw_basis(self, size: Decimal) -> List[Series]: ...
+  @abstractmethod
+  def deposit_basis(self, trade_series: List[Series]): ...

@@ -1,7 +1,7 @@
 from collections import deque
 from decimal import Decimal
 from fractions import Fraction
-from typing import Deque, Tuple, Dict
+from typing import Deque, Tuple, Dict, List
 
 from datetime import datetime
 from pandas import Series
@@ -9,33 +9,11 @@ from pandas import Series
 from calculator.converters import USD_ROUNDER
 from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME,\
   VALUE_IN_USD, ADJUSTED_VALUE, ID, ADJUSTED_SIZE
-from calculator.types import Asset, Side, Entry
+from calculator.types import Asset, Side, Entry, TradeProcessor, Trade
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, \
   get_p_and_l
 
 VARIABLE_COLUMNS = [SIZE, FEE, TOTAL]
-
-
-class TradeProcessor:  # pragma: no cover
-  """
-  Abstract base class for handling a series of trades for a given asset. Should
-  be initialized with a list of trades that define the basis for the asset.
-  """
-  def handle_trade(self, trade: Series) -> None:
-    """
-    Handles the given trade by matching it with the appropriate basis.
-    :param trade:
-    :return:
-    """
-    raise NotImplementedError("Interface method not implemented.")
-
-  def get_entries(self) -> Deque[Entry]:
-    """
-    return resulting entries from all trades. Should be called after all trades
-    have been passed to handle_trade.
-    :return: a deque of all resulting entries
-    """
-    raise NotImplementedError("Interface method not implemented.")
 
 
 class TradeProcessorImpl(TradeProcessor):
@@ -49,7 +27,8 @@ class TradeProcessorImpl(TradeProcessor):
     self.track_wash = track_wash
     if track_wash:
       self.wash_before_loss_check: Deque[Series] = basis_queue.copy()
-      self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = deque()
+      self.wash_after_loss_check: Deque[Tuple[datetime, ProfitAndLoss]] = \
+        deque()
       self.entries_by_basis_id: Dict[int, Entry] = {}
       # wash tracking adds additional columns that need to be changed.
       self.variable_usd_columns = [VALUE_IN_USD, ADJUSTED_VALUE]
@@ -65,8 +44,17 @@ class TradeProcessorImpl(TradeProcessor):
     else:
       self.handle_basis_trade(trade)
 
+  def withdraw_basis(self, size: Decimal) -> List[Series]:
+    pass
+
+  def deposit_basis(self, trade_series: List[Series]):
+    pass
+
   def get_entries(self) -> Deque[Entry]:
     return self.entries
+
+  def get_basis_queue(self) -> Deque[Series]:
+    return self.basis_queue
 
   def is_proceed_trade(self, trade: Series) -> bool:
     product = trade[PAIR]

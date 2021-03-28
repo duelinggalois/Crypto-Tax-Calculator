@@ -910,7 +910,7 @@ class ProcessorBuilder:
 
   def build(self) -> Tuple[Deque[Series], Deque[Entry]]:
     processor = self.build_processor()
-    return processor.basis_queue, processor.get_entries()
+    return processor.get_basis_queue(), processor.get_entries()
 
   def build_processor(self) -> TradeProcessorImpl:
     processor = self.get_processor(
