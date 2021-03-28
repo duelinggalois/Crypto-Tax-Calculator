@@ -4,12 +4,14 @@ from fractions import Fraction
 from typing import Deque, Tuple, Dict, List
 
 from datetime import datetime
+
+import pytz
 from pandas import Series
 
 from calculator.converters import USD_ROUNDER
-from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME,\
+from calculator.format import SIDE, PAIR, SIZE, FEE, TOTAL, TIME, \
   VALUE_IN_USD, ADJUSTED_VALUE, ID, ADJUSTED_SIZE
-from calculator.types import Asset, Side, Entry, TradeProcessor, Trade
+from calculator.types import Asset, Side, Entry, TradeProcessor
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, \
   get_p_and_l
 
@@ -45,10 +47,49 @@ class TradeProcessorImpl(TradeProcessor):
       self.handle_basis_trade(trade)
 
   def withdraw_basis(self, size: Decimal) -> List[Series]:
-    pass
+    withdraw = []
+    while size > 0:
+      buy = self.basis_queue.popleft()
+      buy_size = self.determine_basis_size(buy)
+      if buy_size >= size:
+        # Size is conditional on pair
+        split, remainder = self.spit_trade_to_match(buy, size, buy_size)
+
+        withdraw.append(split)
+        self.basis_queue.appendleft(remainder)
+        break
+      else:
+        size -= buy_size
+        withdraw.append(buy)
+    return withdraw
+
 
   def deposit_basis(self, trade_series: List[Series]):
-    pass
+    """
+    inserts entries chronologically without sorting by iterating through both
+    trade_series and and self.basis_queue and inserting trades chronologically.
+    :param trade_series: chronological list of trade series to insert into the
+    basis_queue
+
+    throws exception if list is not sorted chronologically.
+    """
+    i = 0
+    time = datetime.fromtimestamp(0, pytz.UTC)
+    for trade in trade_series:
+      if time > trade[TIME]:
+        raise ValueError(
+          "out of order times for deposits: {}\nlist of trades:\n{}"
+          .format([t[TIME] for t in trade_series], trade_series))
+      time = trade[TIME]
+      inserted = False
+      while i < len(self.basis_queue) and not inserted:
+        if time <= self.basis_queue[i][TIME]:
+          self.basis_queue.insert(i, trade)
+          inserted = True
+        i += 1
+      if not inserted:
+        self.basis_queue.append(trade)
+
 
   def get_entries(self) -> Deque[Entry]:
     return self.entries

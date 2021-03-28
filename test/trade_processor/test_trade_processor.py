@@ -11,7 +11,7 @@ import pytz
 from calculator.format import (
   ID, VALUE_IN_USD, USD_PER_BTC,
   TOTAL, P_F_T_UNIT, FEE, SIZE_UNIT,
-  SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE)
+  SIZE, TIME, SIDE, PAIR, ADJUSTED_VALUE, PRICE)
 from calculator.types import Pair, Asset, Side, Entry
 from calculator.trade_processor.profit_and_loss import ProfitAndLoss, \
   get_p_and_l
@@ -835,6 +835,89 @@ class TestTradeProcessor(TestCase):
     # total 0.4 * 6000 = 2400 adjusted 2400 + 2160 * 0.2 + 575 * 2/5 = 3062
     # basis should be negative, but context is swapped due to LTC-BTC
     self.verify_basis(basis_two, "2400", "3062")
+
+  def test_withdraw_less_than_size(self):
+    buy = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("10000"),
+                                 Decimal("100"))
+    processor = ProcessorBuilder().process_trades(buy).build_processor()
+
+    transfers = processor.withdraw_basis(Decimal(".75"))
+    self.assertEqual(len(transfers), 1)
+    split_buy_one = transfers[0]
+    self.verify_size_price_fee(split_buy_one, ".75", "10000", "75")
+    basis_queue = processor.get_basis_queue()
+    self.assertEqual(len(basis_queue), 1)
+    split_buy_two = basis_queue.popleft()
+    self.verify_size_price_fee(split_buy_two, ".25", "10000", "25")
+
+  def test_withdraw_greater_than_size(self):
+    buy_one = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("10000"),
+                                     Decimal("100"))
+    buy_two = self.get_btc_usd_trade(Side.BUY, Decimal("1"), Decimal("10000"),
+                                     Decimal("100"))
+    processor = ProcessorBuilder().process_trades(buy_one, buy_two)\
+      .build_processor()
+
+    transfers = processor.withdraw_basis(Decimal("1.75"))
+    self.assertEqual(len(transfers), 2)
+    split_buy_one = transfers[0]
+    self.verify_size_price_fee(split_buy_one, "1", "10000", "100")
+    split_buy_two = transfers[1]
+    self.verify_size_price_fee(split_buy_two, ".75", "10000", "75")
+    basis_queue = processor.get_basis_queue()
+    self.assertEqual(len(basis_queue), 1)
+    split_buy_three = basis_queue.popleft()
+    self.verify_size_price_fee(split_buy_three, ".25", "10000", "25")
+
+  def test_deposit_chronologically(self):
+    """
+    deposit could come after buy two since the buy is an a separate account, and
+    could be processed after buy one and two in this account.
+    :return:
+    """
+    buy_deposit_one = self.get_btc_usd_trade(
+      Side.BUY, Decimal("1"), Decimal("10000"), Decimal("100"))
+    buy_one = self.get_btc_usd_trade(
+      Side.BUY, Decimal("2"), Decimal("20000"), Decimal("200"))
+    buy_deposit_two = self.get_btc_usd_trade(
+      Side.BUY, Decimal("3"), Decimal("30000"), Decimal("300"))
+    buy_two = self.get_btc_usd_trade(
+      Side.BUY, Decimal("4"), Decimal("40000"), Decimal("400"))
+    buy_deposit_three = self.get_btc_usd_trade(
+      Side.BUY, Decimal("5"), Decimal("50000"), Decimal("500"))
+    buy_deposit_four = self.get_btc_usd_trade(
+      Side.BUY, Decimal("6"), Decimal("60000"), Decimal("600"))
+    processor = ProcessorBuilder().process_trades(buy_one, buy_two)\
+      .build_processor()
+    processor.deposit_basis([buy_deposit_two])
+    processor.deposit_basis([buy_deposit_one, buy_deposit_three, buy_deposit_four])
+
+    basis_queue = processor.get_basis_queue()
+    self.assertEqual(len(basis_queue), 6)
+    self.verify_size_price_fee(basis_queue[0], "1", "10000", "100")
+    self.verify_size_price_fee(basis_queue[1], "2", "20000", "200")
+    self.verify_size_price_fee(basis_queue[2], "3", "30000", "300")
+    self.verify_size_price_fee(basis_queue[3], "4", "40000", "400")
+    self.verify_size_price_fee(basis_queue[4], "5", "50000", "500")
+    self.verify_size_price_fee(basis_queue[5], "6", "60000", "600")
+
+  def test_non_chronological_trades_raises_exception(self):
+    buy_deposit_one = self.get_btc_usd_trade(
+      Side.BUY, Decimal("1"), Decimal("10000"), Decimal("100"))
+    buy_one = self.get_btc_usd_trade(
+      Side.BUY, Decimal("2"), Decimal("20000"), Decimal("200"))
+    buy_deposit_two = self.get_btc_usd_trade(
+      Side.BUY, Decimal("3"), Decimal("30000"), Decimal("300"))
+    processor = ProcessorBuilder().process_trades(buy_one).build_processor()
+
+    with self.assertRaises(ValueError):
+      processor.deposit_basis([buy_deposit_two, buy_deposit_one])
+
+  def verify_size_price_fee(self, split_buy_three, size, price, fee):
+    self.assertEqual(split_buy_three[SIZE], Decimal(size))
+    self.assertEqual(split_buy_three[PRICE], Decimal(price))
+    self.assertEqual(split_buy_three[FEE], Decimal(fee))
+
 
   @staticmethod
   def verify_variable_columns(trade, size_str, total_str, fee_str):
