@@ -4,11 +4,11 @@ from pandas import DataFrame
 
 from calculator import tax_calculator
 from calculator.format import ID, PAIR, SIZE_UNIT, P_F_T_UNIT
-from calculator.trade_types import Pair, Asset
+from calculator.types import Pair, Asset
 from test.test_helpers import id_incrementer
 
 
-class TestTaxCalculator(TestCase):
+class TestTaxCalculatorGetAsset(TestCase):
 
   def setUp(self):
     id_incrementer.reset()

@@ -1,0 +1,93 @@
+from collections import deque
+from decimal import Decimal
+from typing import Deque, List
+from unittest import TestCase
+from unittest.mock import Mock
+
+import pandas as pd
+from pandas import DataFrame, Series
+
+from calculator import tax_calculator
+from calculator.converters import CONVERTERS
+from calculator.csv.write_output import WriteOutput
+from calculator.trade_processor.processor_factory import ProcessorFactory
+from calculator.trade_processor.trade_processor import TradeProcessor
+from calculator.types import Asset, Entry
+from test.test_helpers import get_test_csv_directory
+
+
+class TestTaxCalculatorCalculateProfitAndLoss(TestCase):
+
+  def setUp(self):
+    test_directory: str = get_test_csv_directory()
+    self.basis: DataFrame = pd.read_csv(
+      test_directory + "/test_basis_df.csv", converters=CONVERTERS)
+    self.trades: DataFrame = pd.read_csv(
+      test_directory + "/test_cb_trades.csv", converters=CONVERTERS)
+
+  def test_one(self):
+    processor = self.get_stub_trade_processor()
+    tax_calculator.timed_trade_handler(
+      processor,
+      self.trades)
+
+    self.assertEqual(processor.count, 1)
+
+  def test_handle_asset_btc(self):
+    asset = Asset.BTC
+    writer = Mock(WriteOutput)
+    tax_calculator.handle_asset(
+      self.get_stub_processor_factory(), asset, self.basis, self.trades, writer)
+
+    self.assertEqual(len(self.processors), 1)
+    self.assertEqual(len(self.processors[0].trades), 1)
+    writer.write.assert_called_once()
+    call = writer.write.call_args
+    self.assertEqual(call[0][0], asset)
+    # truth values of Series is ambiguous using string instead
+    self.assertEqual(str(call[0][1]),
+                     str(deque(j for i, j in self.basis.iterrows())))
+    self.assertEqual(call[0][2], self.processors[0].get_entries())
+
+  def get_stub_processor_factory(self):
+    self.processors = []
+
+    class StubProcessorFactory(ProcessorFactory):
+
+      @staticmethod
+      def new_processor(
+        asset: Asset,
+        basis_queue: Deque[Series],
+        track_wash=False):
+
+        processor = self.get_stub_trade_processor()
+        self.processors.append(processor)
+        return processor
+
+    return StubProcessorFactory()
+
+
+  def get_stub_trade_processor(self):
+    class StubProcessor(TradeProcessor):
+      def get_basis_queue(self) -> Deque[Series]:
+        pass
+
+      def withdraw_basis(self, size: Decimal) -> List[Series]:
+        pass
+
+      def deposit_basis(self, trade_series: List[Series]):
+        pass
+
+      count = 0
+      trades = []
+      entries = deque("test entry")
+      p_l_by_entry = {}
+
+      def handle_trade(self, trade: Series) -> None:
+        self.count += 1
+        self.trades.append(trade)
+
+      def get_entries(self) -> Deque[Entry]:
+        return self.entries
+
+    return StubProcessor()

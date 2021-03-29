@@ -1,7 +1,8 @@
+import os
 from decimal import Decimal
 
 from datetime import datetime, timedelta
-from typing import Union, List, Tuple, Dict, Any
+from typing import Union, List, Tuple, Dict, Any, Callable
 
 import pytz
 from pandas import Series, DataFrame
@@ -11,7 +12,12 @@ from calculator.converters import USD_ROUNDER
 from calculator.format import ID, PAIR, SIDE, TIME, SIZE, \
   SIZE_UNIT, PRICE, FEE, P_F_T_UNIT, TOTAL, USD_PER_BTC, VALUE_IN_USD, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE
-from calculator.trade_types import Pair, Asset, Side
+from calculator.types import Pair, Asset, Side
+
+
+NOOP_IF_CALLED: Callable = lambda *x, **y: None
+FAIL_IF_CALLED: Callable = lambda *x, **y: exec(
+  'raise(AssertionError("Fails when called"))')
 
 
 def get_trade_for_pair(pair: Pair, side: Side, time: datetime,
@@ -158,4 +164,9 @@ class VerifyOutput:
     cls.output_kwargs = []
 
 
-PASS_IF_CALLED = lambda *x, **y: None
+def get_test_directory():
+  return os.path.dirname(os.path.abspath(__file__))
+
+
+def get_test_csv_directory():
+  return get_test_directory() + "/test_files"

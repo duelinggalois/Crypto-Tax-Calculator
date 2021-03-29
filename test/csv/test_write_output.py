@@ -11,11 +11,11 @@ from pandas.testing import assert_frame_equal
 
 from calculator.format import TIME_STRING_FORMAT, BASIS_SFX, COSTS_SFX, \
   PROCEEDS_SFX, PROFIT_AND_LOSS_SFX, SUMMARY, COMBINED_BASIS
-from calculator.trade_processor.profit_and_loss import Entry
 from calculator.csv.write_output import WriteOutput
-from calculator.trade_types import Pair, Side, Asset
+from calculator.trade_processor.profit_and_loss import get_p_and_l
+from calculator.types import Pair, Side, Asset, Entry
 from test.test_helpers import get_trade_for_pair, time_incrementer, \
-  VerifyOutput, PASS_IF_CALLED
+  VerifyOutput, NOOP_IF_CALLED
 
 TIME_ONE = time_incrementer.get_time_and_increment(0, 1)
 TIME_TWO = time_incrementer.get_time_and_increment(0, 1)
@@ -93,7 +93,8 @@ class TestWriteOutput(TestCase):
     self.basis_queue.append(BASIS_TWO)
     self.entries.append(ENTRY_ONE)
     self.entries.append(ENTRY_TWO)
-    self.write_output.write(ASSET, self.basis_queue, self.entries)
+    self.write_output.write(ASSET, self.basis_queue, self.entries,
+                            {e: get_p_and_l(e) for e in self.entries})
 
     self.validate_df_call(write_basis, DataFrame(self.basis_queue))
     self.validate_df_call(
@@ -158,7 +159,7 @@ class TestWriteOutput(TestCase):
 
   @mock.patch(MOCK_TO_CSV_PATH, new=verify_output.get_stub_to_csv())
   def test_write_profit_and_loss(self):
-    expected_df = DataFrame([ENTRY_ONE.profit_and_loss.get_series()])
+    expected_df = DataFrame([get_p_and_l(ENTRY_ONE).get_series()])
     self.write_output.write_profit_and_loss(expected_df, asset=Asset.BTC)
 
     self.validate_output(expected_df, "".join(
@@ -168,8 +169,8 @@ class TestWriteOutput(TestCase):
   def test_write_profit_and_loss_multiple(self):
     self.write_output.asset = ASSET
     df = DataFrame([
-      ENTRY_ONE.profit_and_loss.get_series(),
-      ENTRY_TWO.profit_and_loss.get_series()
+      get_p_and_l(ENTRY_ONE).get_series(),
+      get_p_and_l(ENTRY_TWO).get_series()
     ])
     self.write_output.write_profit_and_loss(df, ASSET)
 
@@ -177,10 +178,10 @@ class TestWriteOutput(TestCase):
       [PATH, ASSET.value, "_", PROFIT_AND_LOSS_SFX]), False)
 
   @mock.patch(MOCK_TO_CSV_PATH, new=verify_output.get_stub_to_csv())
-  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_proceeds", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_costs", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_basis", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_proceeds", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_costs", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_basis", new=NOOP_IF_CALLED)
   def test_write_outputs(self):
     """
     PASS_IF_CALLED used to ensure data is not written, methods are tested in
@@ -190,10 +191,12 @@ class TestWriteOutput(TestCase):
     self.basis_queue.append(BASIS_TWO)
     self.entries.append(ENTRY_ONE)
     self.entries.append(ENTRY_TWO)
-    self.write_output.write(ASSET, self.basis_queue, self.entries)
+    self.write_output.write(ASSET, self.basis_queue, self.entries,
+                            {e: get_p_and_l(e) for e in self.entries})
     ltc_basis = deque((LTC_BASIS_ONE, LTC_BASIS_TWO))
     ltc_entries = deque((LTC_ENTRY_ONE, LTC_ENTRY_TWO))
-    self.write_output.write(Asset.LTC, ltc_basis, ltc_entries)
+    self.write_output.write(Asset.LTC, ltc_basis, ltc_entries,
+                            {e: get_p_and_l(e) for e in ltc_entries})
 
     self.write_output.write_summary()
 
@@ -228,14 +231,14 @@ class TestWriteOutput(TestCase):
     )
 
   @mock.patch(MOCK_TO_CSV_PATH, new=verify_output.get_stub_to_csv())
-  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_proceeds", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_costs", new=PASS_IF_CALLED)
-  @mock.patch.object(WriteOutput, "write_basis", new=PASS_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_profit_and_loss", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_proceeds", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_costs", new=NOOP_IF_CALLED)
+  @mock.patch.object(WriteOutput, "write_basis", new=NOOP_IF_CALLED)
   def test_write_empty_p_l(self):
     self.basis_queue.append(BASIS_ONE)
     self.basis_queue.append(BASIS_TWO)
-    self.write_output.write(Asset.BTC, self.basis_queue, deque())
+    self.write_output.write(Asset.BTC, self.basis_queue, deque(), {})
     self.write_output.write_summary()
     expected_summary_df = DataFrame({
       "asset": [Asset.BTC],

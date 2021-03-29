@@ -1,0 +1,2 @@
+portfolio,trade id,product,side,created at,size,size unit,price,fee,total,price/fee/total unit,usd per btc,value in usd
+default,200,BTC-USD,SELL,2019-04-03T14:09:12.361Z,.5,BTC,7000,0,3500,USD,,3500

@@ -7,11 +7,11 @@ from pandas import Series
 from calculator.converters import USD_ROUNDER
 from calculator.format import ID, PAIR, VALUE_IN_USD, SIZE, USD_PER_BTC, SIDE, \
   ADJUSTED_VALUE, WASH_P_L_IDS, ADJUSTED_SIZE, TOTAL
-from calculator.trade_types import Pair, Asset, Side
+from calculator.types import Pair, Asset, Side, Entry
 from calculator.auto_id_incrementer import AutoIdIncrementer
 
 INVALID_SIZE_MESSAGE = "Sizes must be the same: {}, {}\n" \
-                        "Basis:\dn{}\n" \
+                        "Basis:\n{}\n" \
                         "Proceeds:\n{}"
 INVALID_MATCH = lambda b, b_size, p, p_size: INVALID_SIZE_MESSAGE.format(
   b_size, p_size,
@@ -23,15 +23,13 @@ INVALID_TRADE = lambda a, b, t: INVALID_TRADE_MESSAGE.format(t, a, b)
 auto_incrementer = AutoIdIncrementer()
 
 
-class Entry:
+def get_p_and_l(e: Entry):
   """
-  Class to hold basis and proceeds trades and associated ProfitAndLoss.
+  hack to remove p_l object from entries until its refactored
+  :param e:
+  :return:
   """
-  
-  def __init__(self, asset: Asset, basis: Series, proceeds: Series):
-    self.costs = basis
-    self.proceeds = proceeds
-    self.profit_and_loss = ProfitAndLoss(asset, basis, proceeds)
+  return ProfitAndLoss(e.get_asset(), e.get_costs(), e.get_proceeds())
 
 
 class ProfitAndLoss:
@@ -50,10 +48,10 @@ class ProfitAndLoss:
     self.wash_loss_basis_ids: List[int] = []
     self.basis_id: int = basis[ID]
     self.basis_pair: Pair = basis[PAIR]
-    self.basis: Decimal = self.get_value(basis)
+    self.basis: Decimal = basis[VALUE_IN_USD]
     self.proceeds_id: int = proceeds[ID]
     self.proceeds_pair: Pair = proceeds[PAIR]
-    self.proceeds: Decimal = self.get_value(proceeds)
+    self.proceeds: Decimal = proceeds[VALUE_IN_USD]
     self.profit_and_loss: Decimal = self.proceeds - self.basis
     self.taxed_profit_and_loss: Decimal = self.profit_and_loss
 
@@ -122,9 +120,6 @@ class ProfitAndLoss:
     return self.taxed_profit_and_loss < 0 or (
         self.taxed_profit_and_loss == 0 and
         self.profit_and_loss < 0 < self.unwashed_size)
-
-  def get_value(self, trade: Series):
-    return trade[VALUE_IN_USD]
 
   @staticmethod
   def get_basis_size(asset: Asset, basis: Series) -> Decimal:
